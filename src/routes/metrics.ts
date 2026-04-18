@@ -5,16 +5,12 @@ import { collectMetricsJob } from "../jobs/collectMetrics.js";
 
 const router = Router();
 
-router.get("/metrics", (_req, res) => {
-  res.json(getMetricsDashboard());
-});
+router.get("/metrics", asyncHandler(async (_req, res) => {
+  res.json(await getMetricsDashboard());
+}));
 
-router.post(
-  "/metrics/collect",
-  asyncHandler(async (_req, res) => {
-    const result = await collectMetricsJob();
-    res.json(result);
-  }),
-);
+router.post("/metrics/collect", asyncHandler(async (_req, res) => {
+  res.json(await collectMetricsJob());
+}));
 
 export default router;

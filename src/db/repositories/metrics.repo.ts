@@ -1,55 +1,40 @@
-import { getDb, type MetricRow, type ScheduledPostRow } from "../index.js";
+import { getSupabase } from "../supabase.js";
+import type { ScheduledPostRow } from "./scheduled.repo.js";
 
-export function insertMetric(params: {
+export type MetricRow = {
   id: string;
-  scheduledPostId: string;
-  tweetUrl: string;
+  scheduled_post_id: string;
+  tweet_url: string;
   likes: number;
   retweets: number;
   replies: number;
   views: number;
-  followersAtTime: number | null;
-}): void {
-  getDb()
-    .prepare(
-      `INSERT INTO post_metrics (id, scheduled_post_id, tweet_url, likes, retweets, replies, views, followers_at_time, collected_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`,
-    )
-    .run(
-      params.id,
-      params.scheduledPostId,
-      params.tweetUrl,
-      params.likes,
-      params.retweets,
-      params.replies,
-      params.views,
-      params.followersAtTime,
-    );
+  followers_at_time: number | null;
+  collected_at: string;
+};
+
+export async function insertMetric(params: {
+  id: string; scheduledPostId: string; tweetUrl: string;
+  likes: number; retweets: number; replies: number; views: number;
+  followersAtTime: number | null; userId?: string;
+}): Promise<void> {
+  await getSupabase().from("post_metrics").insert({
+    id: params.id, scheduled_post_id: params.scheduledPostId,
+    tweet_url: params.tweetUrl, likes: params.likes,
+    retweets: params.retweets, replies: params.replies,
+    views: params.views, followers_at_time: params.followersAtTime,
+    user_id: params.userId ?? null, collected_at: new Date().toISOString(),
+  });
 }
 
-export function getLatestMetricByPost(scheduledPostId: string): MetricRow | undefined {
-  return getDb()
-    .prepare(
-      "SELECT * FROM post_metrics WHERE scheduled_post_id = ? ORDER BY collected_at DESC LIMIT 1",
-    )
-    .get(scheduledPostId) as MetricRow | undefined;
-}
-
-export function getPostsNeedingMetrics(): { id: string; tweet_url: string }[] {
-  return getDb()
-    .prepare(`
-      SELECT sp.id, sp.tweet_url
-      FROM scheduled_posts sp
-      WHERE sp.status = 'posted'
-        AND sp.tweet_url IS NOT NULL
-        AND (
-          NOT EXISTS (SELECT 1 FROM post_metrics pm WHERE pm.scheduled_post_id = sp.id)
-          OR (SELECT MAX(collected_at) FROM post_metrics pm WHERE pm.scheduled_post_id = sp.id) < datetime('now', '-24 hours')
-        )
-      ORDER BY sp.run_at DESC
-      LIMIT 20
-    `)
-    .all() as { id: string; tweet_url: string }[];
+export async function getPostsNeedingMetrics(): Promise<{ id: string; tweet_url: string }[]> {
+  const { data } = await getSupabase().from("scheduled_posts")
+    .select("id, tweet_url")
+    .eq("status", "posted")
+    .not("tweet_url", "is", null)
+    .order("run_at", { ascending: false })
+    .limit(20);
+  return (data ?? []) as { id: string; tweet_url: string }[];
 }
 
 export type MetricsDashboardData = {
@@ -61,22 +46,28 @@ export type MetricsDashboardData = {
   posts: (ScheduledPostRow & { latestMetric: MetricRow | null })[];
 };
 
-export function getMetricsDashboard(): MetricsDashboardData {
-  const db = getDb();
+export async function getMetricsDashboard(userId?: string): Promise<MetricsDashboardData> {
+  const sb = getSupabase();
 
-  const postedPosts = db
-    .prepare("SELECT * FROM scheduled_posts WHERE status = 'posted' ORDER BY run_at DESC LIMIT 50")
-    .all() as ScheduledPostRow[];
+  let query = sb.from("scheduled_posts").select("*")
+    .eq("status", "posted")
+    .order("run_at", { ascending: false })
+    .limit(50);
+  if (userId) query = query.eq("user_id", userId);
+  const { data: posts } = await query;
+  const postedPosts = (posts ?? []) as ScheduledPostRow[];
 
-  let totalLikes = 0;
-  let totalRetweets = 0;
-  let totalViews = 0;
+  let totalLikes = 0, totalRetweets = 0, totalViews = 0;
   let bestPost: MetricsDashboardData["bestPost"] = null;
 
-  const posts = postedPosts.map((post) => {
-    const metric = db
-      .prepare("SELECT * FROM post_metrics WHERE scheduled_post_id = ? ORDER BY collected_at DESC LIMIT 1")
-      .get(post.id) as MetricRow | undefined;
+  const result = [];
+  for (const post of postedPosts) {
+    const { data: metrics } = await sb.from("post_metrics")
+      .select("*")
+      .eq("scheduled_post_id", post.id)
+      .order("collected_at", { ascending: false })
+      .limit(1);
+    const metric = (metrics?.[0] as MetricRow) ?? null;
 
     if (metric) {
       totalLikes += metric.likes;
@@ -87,15 +78,8 @@ export function getMetricsDashboard(): MetricsDashboardData {
       }
     }
 
-    return { ...post, latestMetric: metric ?? null };
-  });
+    result.push({ ...post, latestMetric: metric });
+  }
 
-  return {
-    totalPosts: postedPosts.length,
-    totalLikes,
-    totalRetweets,
-    totalViews,
-    bestPost,
-    posts,
-  };
+  return { totalPosts: postedPosts.length, totalLikes, totalRetweets, totalViews, bestPost, posts: result };
 }

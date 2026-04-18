@@ -2,13 +2,8 @@ import { Router } from "express";
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { updateDraftStatus } from "../db/repositories/drafts.repo.js";
-import {
-  insertScheduled,
-  listScheduled,
-  getScheduled,
-  cancelScheduled,
-} from "../db/repositories/scheduled.repo.js";
-import { httpError } from "../middleware/errorHandler.js";
+import { insertScheduled, listScheduled, getScheduled, cancelScheduled } from "../db/repositories/scheduled.repo.js";
+import { asyncHandler, httpError } from "../middleware/errorHandler.js";
 import { parsePagination } from "../util/pagination.js";
 
 const router = Router();
@@ -19,36 +14,25 @@ const scheduleBody = z.object({
   runAt: z.string(),
 });
 
-router.post("/schedule", (req, res) => {
+router.post("/schedule", asyncHandler(async (req, res) => {
   const body = scheduleBody.parse(req.body);
   const id = randomUUID();
   const now = new Date().toISOString();
+  await insertScheduled({ id, draftId: body.draftId ?? null, body: body.body, runAt: body.runAt, now });
+  if (body.draftId) await updateDraftStatus(body.draftId, "scheduled", now);
+  res.json(await getScheduled(id));
+}));
 
-  insertScheduled({
-    id,
-    draftId: body.draftId ?? null,
-    body: body.body,
-    runAt: body.runAt,
-    now,
-  });
-
-  if (body.draftId) {
-    updateDraftStatus(body.draftId, "scheduled", now);
-  }
-
-  res.json(getScheduled(id));
-});
-
-router.get("/scheduled", (req, res) => {
+router.get("/scheduled", asyncHandler(async (req, res) => {
   const { page, limit, offset } = parsePagination(req);
-  const { data, total } = listScheduled(limit, offset);
+  const { data, total } = await listScheduled(limit, offset);
   res.json({ data, total, page, limit });
-});
+}));
 
-router.delete("/scheduled/:id", (req, res) => {
-  const changes = cancelScheduled(req.params.id);
+router.delete("/scheduled/:id", asyncHandler(async (req, res) => {
+  const changes = await cancelScheduled(req.params.id as string);
   if (changes === 0) throw httpError(404, "Post não encontrado ou já processado.");
   res.json({ cancelled: true });
-});
+}));
 
 export default router;

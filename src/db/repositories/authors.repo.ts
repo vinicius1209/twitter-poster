@@ -1,48 +1,43 @@
-import { getDb } from "../index.js";
+import { getSupabase } from "../supabase.js";
 
 export type AuthorRow = {
   id: string;
   handle: string;
   display_name: string | null;
   priority: number;
+  user_id: string | null;
   created_at: string;
 };
 
-export function listAuthors(): AuthorRow[] {
-  return getDb()
-    .prepare(`SELECT * FROM authors ORDER BY priority DESC`)
-    .all() as AuthorRow[];
+export async function listAuthors(userId?: string): Promise<AuthorRow[]> {
+  const sb = getSupabase();
+  let query = sb.from("authors").select("*").order("priority", { ascending: false });
+  if (userId) query = query.eq("user_id", userId);
+  const { data } = await query;
+  return (data ?? []) as AuthorRow[];
 }
 
-export function getWatchlistHandles(): { handle: string }[] {
-  return getDb()
-    .prepare(`SELECT handle FROM authors WHERE priority > 0 ORDER BY priority DESC`)
-    .all() as { handle: string }[];
+export async function getWatchlistHandles(userId?: string): Promise<{ handle: string }[]> {
+  const sb = getSupabase();
+  let query = sb.from("authors").select("handle").gt("priority", 0).order("priority", { ascending: false });
+  if (userId) query = query.eq("user_id", userId);
+  const { data } = await query;
+  return (data ?? []) as { handle: string }[];
 }
 
-export function upsertAuthor(params: {
-  id: string;
-  handle: string;
-  displayName: string | null;
-  priority: number;
-  now: string;
-}): AuthorRow | undefined {
-  getDb()
-    .prepare(
-      `INSERT INTO authors (id, handle, display_name, priority, created_at)
-       VALUES (?, ?, ?, ?, ?)
-       ON CONFLICT(handle) DO UPDATE SET
-         priority = excluded.priority,
-         display_name = excluded.display_name`,
-    )
-    .run(params.id, params.handle, params.displayName, params.priority, params.now);
-  return getDb()
-    .prepare(`SELECT * FROM authors WHERE handle = ?`)
-    .get(params.handle) as AuthorRow | undefined;
+export async function upsertAuthor(params: {
+  id: string; handle: string; displayName: string | null; priority: number; now: string; userId?: string;
+}): Promise<AuthorRow | undefined> {
+  const sb = getSupabase();
+  await sb.from("authors").upsert({
+    id: params.id, handle: params.handle, display_name: params.displayName,
+    priority: params.priority, created_at: params.now, user_id: params.userId ?? null,
+  }, { onConflict: "handle" });
+  const { data } = await sb.from("authors").select("*").eq("handle", params.handle).single();
+  return data as AuthorRow | undefined;
 }
 
-export function deleteAuthor(handle: string): number {
-  return getDb()
-    .prepare(`DELETE FROM authors WHERE handle = ?`)
-    .run(handle).changes;
+export async function deleteAuthor(handle: string): Promise<number> {
+  const { data } = await getSupabase().from("authors").delete().eq("handle", handle).select("id");
+  return data?.length ?? 0;
 }

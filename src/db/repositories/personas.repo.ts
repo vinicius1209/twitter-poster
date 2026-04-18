@@ -1,55 +1,63 @@
-import { getDb, type PersonaRow } from "../index.js";
+import { getSupabase } from "../supabase.js";
 
-export function listPersonas(): PersonaRow[] {
-  return getDb()
-    .prepare("SELECT * FROM personas ORDER BY is_default DESC, name ASC")
-    .all() as PersonaRow[];
-}
-
-export function getPersona(id: string): PersonaRow | undefined {
-  return getDb()
-    .prepare("SELECT * FROM personas WHERE id = ?")
-    .get(id) as PersonaRow | undefined;
-}
-
-export function getDefaultPersona(): PersonaRow | undefined {
-  return getDb()
-    .prepare("SELECT * FROM personas WHERE is_default = 1 LIMIT 1")
-    .get() as PersonaRow | undefined;
-}
-
-export function insertPersona(params: {
+export type PersonaRow = {
   id: string;
   name: string;
   description: string;
-  systemPrompt: string;
+  system_prompt: string;
   tone: string;
   icon: string;
-}): PersonaRow | undefined {
-  getDb()
-    .prepare(
-      `INSERT INTO personas (id, name, description, system_prompt, tone, icon, is_default, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, 0, CURRENT_TIMESTAMP)`,
-    )
-    .run(params.id, params.name, params.description, params.systemPrompt, params.tone, params.icon);
+  is_default: number;
+  created_at: string;
+};
+
+export async function listPersonas(): Promise<PersonaRow[]> {
+  const { data } = await getSupabase().from("personas").select("*")
+    .order("is_default", { ascending: false })
+    .order("name", { ascending: true });
+  return (data ?? []) as PersonaRow[];
+}
+
+export async function getPersona(id: string): Promise<PersonaRow | undefined> {
+  const { data } = await getSupabase().from("personas").select("*").eq("id", id).single();
+  return data as PersonaRow | undefined;
+}
+
+export async function getDefaultPersona(): Promise<PersonaRow | undefined> {
+  const { data } = await getSupabase().from("personas").select("*").eq("is_default", 1).limit(1).single();
+  return data as PersonaRow | undefined;
+}
+
+export async function insertPersona(params: {
+  id: string; name: string; description: string; systemPrompt: string; tone: string; icon: string;
+}): Promise<PersonaRow | undefined> {
+  await getSupabase().from("personas").insert({
+    id: params.id, name: params.name, description: params.description,
+    system_prompt: params.systemPrompt, tone: params.tone, icon: params.icon,
+    is_default: 0, created_at: new Date().toISOString(),
+  });
   return getPersona(params.id);
 }
 
-export function updatePersona(
+export async function updatePersona(
   id: string,
   params: Partial<{ name: string; description: string; systemPrompt: string; tone: string; icon: string }>,
-): PersonaRow | undefined {
-  const db = getDb();
-  if (params.name !== undefined) db.prepare("UPDATE personas SET name = ? WHERE id = ?").run(params.name, id);
-  if (params.description !== undefined) db.prepare("UPDATE personas SET description = ? WHERE id = ?").run(params.description, id);
-  if (params.systemPrompt !== undefined) db.prepare("UPDATE personas SET system_prompt = ? WHERE id = ?").run(params.systemPrompt, id);
-  if (params.tone !== undefined) db.prepare("UPDATE personas SET tone = ? WHERE id = ?").run(params.tone, id);
-  if (params.icon !== undefined) db.prepare("UPDATE personas SET icon = ? WHERE id = ?").run(params.icon, id);
+): Promise<PersonaRow | undefined> {
+  const update: Record<string, unknown> = {};
+  if (params.name !== undefined) update.name = params.name;
+  if (params.description !== undefined) update.description = params.description;
+  if (params.systemPrompt !== undefined) update.system_prompt = params.systemPrompt;
+  if (params.tone !== undefined) update.tone = params.tone;
+  if (params.icon !== undefined) update.icon = params.icon;
+  if (Object.keys(update).length > 0) {
+    await getSupabase().from("personas").update(update).eq("id", id);
+  }
   return getPersona(id);
 }
 
-export function deletePersona(id: string): number {
-  const persona = getPersona(id);
-  if (persona?.is_default) return 0; // Não permite deletar persona padrão
-  return getDb().prepare("DELETE FROM personas WHERE id = ?").run(id).changes;
+export async function deletePersona(id: string): Promise<number> {
+  const persona = await getPersona(id);
+  if (persona?.is_default) return 0;
+  const { data } = await getSupabase().from("personas").delete().eq("id", id).select("id");
+  return data?.length ?? 0;
 }

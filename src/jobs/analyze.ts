@@ -13,18 +13,14 @@ export async function runTopicAnalysis(windowHours: number): Promise<{
   sampleSize: number;
   analysisSource: "llm" | "heuristic";
 }> {
-  const since = new Date(
-    Date.now() - windowHours * 60 * 60 * 1000,
-  ).toISOString();
-  const rows = getEventTextsSince(since);
+  const since = new Date(Date.now() - windowHours * 60 * 60 * 1000).toISOString();
+  const rows = await getEventTextsSince(since);
   const texts = rows.map((r) => r.text_content);
   const { summary, topics, source } = await analyzeTopicsWithLlm(texts, windowHours);
   const id = randomUUID();
 
-  insertTopicRun({
-    id,
-    windowHours,
-    summary,
+  await insertTopicRun({
+    id, windowHours, summary,
     topicsJson: JSON.stringify(topics),
     now: new Date().toISOString(),
   });
@@ -32,6 +28,6 @@ export async function runTopicAnalysis(windowHours: number): Promise<{
   return { id, summary, topics, sampleSize: texts.length, analysisSource: source };
 }
 
-export function listTopicRuns(limit = 20) {
+export async function listTopicRuns(limit = 20) {
   return listTopicRunsRepo(limit);
 }

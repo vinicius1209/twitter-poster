@@ -1,20 +1,14 @@
 import { Router } from "express";
-import { getDb } from "../db/index.js";
+import { getSupabase } from "../db/supabase.js";
 
 const router = Router();
 
-router.get("/health", (_req, res) => {
+router.get("/health", async (_req, res) => {
   try {
-    const db = getDb();
-    const check = db.pragma("integrity_check") as { integrity_check: string }[];
-    const dbOk = check[0]?.integrity_check === "ok";
-    res.json({ ok: dbOk, service: "twitter-poster", db: dbOk ? "ok" : "integrity_check failed" });
+    const { error } = await getSupabase().from("personas").select("id").limit(1);
+    res.json({ ok: !error, service: "twitter-poster", db: error ? error.message : "ok" });
   } catch (e) {
-    res.status(503).json({
-      ok: false,
-      service: "twitter-poster",
-      db: e instanceof Error ? e.message : "unreachable",
-    });
+    res.status(503).json({ ok: false, service: "twitter-poster", db: e instanceof Error ? e.message : "unreachable" });
   }
 });
 

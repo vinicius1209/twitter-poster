@@ -5,7 +5,6 @@ import {
   DELAY_BEFORE_SUBMIT,
   DELAY_AFTER_SUBMIT,
   TYPING_DELAY,
-  xUserHandle,
 } from "../config.js";
 import { selectors } from "./selectors.js";
 import { getPersistentContext } from "./session.js";
@@ -18,7 +17,7 @@ export type PostResult = { ok: boolean; error?: string; tweetUrl?: string };
  * Publica um post pela UI web (home → compositor → Postar).
  * Após publicar, tenta capturar a URL do tweet visitando o perfil do usuário.
  */
-export function postTweetViaUi(body: string): Promise<PostResult> {
+export function postTweetViaUi(body: string, userHandle?: string): Promise<PostResult> {
   const text = body.trim().slice(0, POST_LIMITS.long);
   if (!text) {
     return Promise.resolve({ ok: false, error: "Texto vazio." });
@@ -68,9 +67,9 @@ export function postTweetViaUi(body: string): Promise<PostResult> {
 
     // Tentar capturar a URL do tweet publicado
     let tweetUrl: string | undefined;
-    if (xUserHandle) {
+    if (userHandle) {
       try {
-        await page.goto(`https://x.com/${xUserHandle}`, {
+        await page.goto(`https://x.com/${userHandle}`, {
           waitUntil: "domcontentloaded",
           timeout: 30_000,
         });

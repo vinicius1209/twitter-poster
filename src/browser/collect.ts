@@ -1,4 +1,4 @@
-import { createHash, randomUUID } from "node:crypto";
+import { createHash } from "node:crypto";
 import type { Page } from "playwright";
 import {
   xUserHandle,
@@ -7,7 +7,7 @@ import {
   DEFAULT_MAX_SCROLLS,
   DEFAULT_MAX_TWEETS,
 } from "../config.js";
-import { getDb } from "../db/index.js";
+import { insertEvents } from "../db/repositories/events.repo.js";
 import { selectors } from "./selectors.js";
 import { delay } from "../util/delay.js";
 import { getPersistentContext } from "./session.js";
@@ -98,56 +98,6 @@ async function extractTweetsFromPage(
   return out;
 }
 
-function insertEvents(
-  source: string,
-  tweets: ExtractedTweet[],
-  signalType: "like" | "view",
-): number {
-  const db = getDb();
-  const insertEvent = db.prepare(
-    `INSERT OR IGNORE INTO raw_events
-     (id, source, author_handle, content_hash, text_content, tweet_url, collected_at, raw_metadata)
-     VALUES (@id, @source, @author_handle, @content_hash, @text_content, @tweet_url, @collected_at, @raw_metadata)`,
-  );
-  const insertSignal = db.prepare(
-    `INSERT INTO engagement_signals (id, event_id, signal_type, weight)
-     VALUES (@id, @event_id, @signal_type, @weight)`,
-  );
-
-  const now = new Date().toISOString();
-  let inserted = 0;
-
-  const tx = db.transaction(() => {
-    for (const t of tweets) {
-      const content_hash = hashContent(t.text);
-      const id = randomUUID();
-      const meta = JSON.stringify({ tweetUrl: t.tweetUrl, mediaUrls: t.mediaUrls });
-      const res = insertEvent.run({
-        id,
-        source,
-        author_handle: t.authorHandle,
-        content_hash,
-        text_content: t.text,
-        tweet_url: t.tweetUrl,
-        collected_at: now,
-        raw_metadata: meta,
-      });
-      if (res.changes > 0) {
-        inserted += 1;
-        insertSignal.run({
-          id: randomUUID(),
-          event_id: id,
-          signal_type: signalType,
-          weight: signalType === "like" ? 1.5 : 1.0,
-        });
-      }
-    }
-  });
-
-  tx();
-  return inserted;
-}
-
 export function collectLikes(
   limits: CollectLimits = defaultLimits,
 ): Promise<{ ok: boolean; message: string; inserted: number }> {
@@ -167,7 +117,7 @@ export function collectLikes(
     await page.goto(url, { waitUntil: "domcontentloaded", timeout: NAV_TIMEOUT });
     await delay(DELAY_AFTER_NAVIGATION);
     const tweets = await extractTweetsFromPage(page, limits);
-    const inserted = insertEvents("likes", tweets, "like");
+    const inserted = await insertEvents("likes", tweets, "like");
     return {
       ok: true,
       message: `Coletados ${tweets.length} tweets visíveis; ${inserted} novos no banco.`,
@@ -188,7 +138,7 @@ export function collectFromProfile(
     await page.goto(url, { waitUntil: "domcontentloaded", timeout: NAV_TIMEOUT });
     await delay(DELAY_AFTER_NAVIGATION);
     const tweets = await extractTweetsFromPage(page, limits);
-    const inserted = insertEvents(`profile:${h}`, tweets, "view");
+    const inserted = await insertEvents(`profile:${h}`, tweets, "view");
     return {
       ok: true,
       message: `Perfil @${h}: ${tweets.length} tweets; ${inserted} novos.`,

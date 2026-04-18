@@ -1,83 +1,89 @@
-import { getDb, type ScheduledPostRow } from "../index.js";
+import { getSupabase } from "../supabase.js";
 
-export function listScheduled(limit = 100, offset = 0): { data: ScheduledPostRow[]; total: number } {
-  const db = getDb();
-  const total = (db.prepare(`SELECT COUNT(*) as c FROM scheduled_posts`).get() as { c: number }).c;
-  const data = db
-    .prepare(`SELECT * FROM scheduled_posts ORDER BY run_at DESC LIMIT ? OFFSET ?`)
-    .all(limit, offset) as ScheduledPostRow[];
-  return { data, total };
-}
-
-export function getScheduled(id: string): ScheduledPostRow | undefined {
-  return getDb()
-    .prepare(`SELECT * FROM scheduled_posts WHERE id = ?`)
-    .get(id) as ScheduledPostRow | undefined;
-}
-
-export function insertScheduled(params: {
+export type ScheduledPostRow = {
   id: string;
-  draftId: string | null;
+  draft_id: string | null;
   body: string;
-  runAt: string;
-  now: string;
-}): void {
-  getDb()
-    .prepare(
-      `INSERT INTO scheduled_posts (id, draft_id, body, run_at, status, attempts, last_error, created_at)
-       VALUES (?, ?, ?, ?, 'scheduled', 0, NULL, ?)`,
-    )
-    .run(params.id, params.draftId, params.body, params.runAt, params.now);
+  run_at: string;
+  status: string;
+  attempts: number;
+  last_error: string | null;
+  tweet_url: string | null;
+  user_id: string | null;
+  created_at: string;
+};
+
+export async function listScheduled(limit = 100, offset = 0, userId?: string): Promise<{ data: ScheduledPostRow[]; total: number }> {
+  const sb = getSupabase();
+  let query = sb.from("scheduled_posts").select("*", { count: "exact" })
+    .order("run_at", { ascending: false })
+    .range(offset, offset + limit - 1);
+  if (userId) query = query.eq("user_id", userId);
+  const { data, count, error } = await query;
+  if (error) throw error;
+  return { data: (data ?? []) as ScheduledPostRow[], total: count ?? 0 };
 }
 
-export function getNextScheduledPost(now: string) {
-  return getDb()
-    .prepare(
-      `SELECT * FROM scheduled_posts WHERE status = 'scheduled' AND run_at <= ? ORDER BY run_at ASC LIMIT 1`,
-    )
-    .get(now) as
-    | { id: string; body: string; attempts: number; draft_id: string | null }
-    | undefined;
+export async function getScheduled(id: string): Promise<ScheduledPostRow | undefined> {
+  const { data } = await getSupabase().from("scheduled_posts").select("*").eq("id", id).single();
+  return data as ScheduledPostRow | undefined;
 }
 
-export function setScheduledAttempts(id: string, attempts: number): void {
-  getDb()
-    .prepare(`UPDATE scheduled_posts SET attempts = ? WHERE id = ?`)
-    .run(attempts, id);
+export async function insertScheduled(params: {
+  id: string; draftId: string | null; body: string; runAt: string; now: string; userId?: string;
+}): Promise<void> {
+  await getSupabase().from("scheduled_posts").insert({
+    id: params.id, draft_id: params.draftId, body: params.body,
+    run_at: params.runAt, status: "scheduled", attempts: 0,
+    created_at: params.now, user_id: params.userId ?? null,
+  });
 }
 
-export function markScheduledPosted(id: string): void {
-  getDb()
-    .prepare(`UPDATE scheduled_posts SET status = 'posted', last_error = NULL WHERE id = ?`)
-    .run(id);
+export async function getNextScheduledPost(now: string): Promise<{ id: string; body: string; attempts: number; draft_id: string | null } | undefined> {
+  const { data } = await getSupabase().from("scheduled_posts")
+    .select("id, body, attempts, draft_id")
+    .eq("status", "scheduled")
+    .lte("run_at", now)
+    .order("run_at", { ascending: true })
+    .limit(1)
+    .single();
+  return data ?? undefined;
 }
 
-export function markScheduledFailed(id: string, error: string): void {
-  getDb()
-    .prepare(`UPDATE scheduled_posts SET status = 'failed', last_error = ? WHERE id = ?`)
-    .run(error, id);
+export async function setScheduledAttempts(id: string, attempts: number): Promise<void> {
+  await getSupabase().from("scheduled_posts").update({ attempts }).eq("id", id);
 }
 
-export function reschedulePost(id: string, nextRunAt: string, error: string): void {
-  getDb()
-    .prepare(`UPDATE scheduled_posts SET run_at = ?, last_error = ? WHERE id = ?`)
-    .run(nextRunAt, error, id);
+export async function markScheduledPosted(id: string): Promise<void> {
+  await getSupabase().from("scheduled_posts").update({ status: "posted", last_error: null }).eq("id", id);
 }
 
-export function updateScheduledTweetUrl(id: string, tweetUrl: string): void {
-  getDb()
-    .prepare("UPDATE scheduled_posts SET tweet_url = ? WHERE id = ?")
-    .run(tweetUrl, id);
+export async function markScheduledFailed(id: string, error: string): Promise<void> {
+  await getSupabase().from("scheduled_posts").update({ status: "failed", last_error: error }).eq("id", id);
 }
 
-export function getPostedWithUrls(): ScheduledPostRow[] {
-  return getDb()
-    .prepare("SELECT * FROM scheduled_posts WHERE status = 'posted' AND tweet_url IS NOT NULL ORDER BY run_at DESC")
-    .all() as ScheduledPostRow[];
+export async function reschedulePost(id: string, nextRunAt: string, error: string): Promise<void> {
+  await getSupabase().from("scheduled_posts").update({ run_at: nextRunAt, last_error: error }).eq("id", id);
 }
 
-export function cancelScheduled(id: string): number {
-  return getDb()
-    .prepare(`UPDATE scheduled_posts SET status = 'cancelled' WHERE id = ? AND status = 'scheduled'`)
-    .run(id).changes;
+export async function updateScheduledTweetUrl(id: string, tweetUrl: string): Promise<void> {
+  await getSupabase().from("scheduled_posts").update({ tweet_url: tweetUrl }).eq("id", id);
+}
+
+export async function cancelScheduled(id: string): Promise<number> {
+  const { data } = await getSupabase().from("scheduled_posts")
+    .update({ status: "cancelled" })
+    .eq("id", id)
+    .eq("status", "scheduled")
+    .select("id");
+  return data?.length ?? 0;
+}
+
+export async function getPostedWithUrls(): Promise<ScheduledPostRow[]> {
+  const { data } = await getSupabase().from("scheduled_posts")
+    .select("*")
+    .eq("status", "posted")
+    .not("tweet_url", "is", null)
+    .order("run_at", { ascending: false });
+  return (data ?? []) as ScheduledPostRow[];
 }

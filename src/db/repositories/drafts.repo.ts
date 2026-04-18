@@ -1,67 +1,76 @@
-import { getDb, type DraftRow } from "../index.js";
+import { getSupabase } from "../supabase.js";
 
-export function listDrafts(limit = 100, offset = 0): { data: DraftRow[]; total: number } {
-  const db = getDb();
-  const total = (db.prepare(`SELECT COUNT(*) as c FROM drafts WHERE status != 'discarded'`).get() as { c: number }).c;
-  const data = db
-    .prepare(`SELECT * FROM drafts WHERE status != 'discarded' ORDER BY updated_at DESC LIMIT ? OFFSET ?`)
-    .all(limit, offset) as DraftRow[];
-  return { data, total };
+export type DraftRow = {
+  id: string;
+  body: string;
+  status: string;
+  inspired_by_event_ids: string | null;
+  similarity_note: string | null;
+  persona_id: string | null;
+  user_id: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export async function listDrafts(limit = 100, offset = 0, userId?: string): Promise<{ data: DraftRow[]; total: number }> {
+  const sb = getSupabase();
+  let query = sb.from("drafts").select("*", { count: "exact" })
+    .neq("status", "discarded")
+    .order("updated_at", { ascending: false })
+    .range(offset, offset + limit - 1);
+  if (userId) query = query.eq("user_id", userId);
+  const { data, count, error } = await query;
+  if (error) throw error;
+  return { data: (data ?? []) as DraftRow[], total: count ?? 0 };
 }
 
-export function deleteDraft(id: string): void {
-  getDb()
-    .prepare(`UPDATE drafts SET status = 'discarded', updated_at = CURRENT_TIMESTAMP WHERE id = ?`)
-    .run(id);
+export async function getDraft(id: string): Promise<DraftRow | undefined> {
+  const { data, error } = await getSupabase().from("drafts").select("*").eq("id", id).single();
+  if (error) return undefined;
+  return data as DraftRow;
 }
 
-export function getDraft(id: string): DraftRow | undefined {
-  return getDb()
-    .prepare(`SELECT * FROM drafts WHERE id = ?`)
-    .get(id) as DraftRow | undefined;
+export async function updateDraftBody(id: string, body: string, now: string): Promise<void> {
+  await getSupabase().from("drafts").update({ body, updated_at: now }).eq("id", id);
 }
 
-export function updateDraftBody(id: string, body: string, now: string): void {
-  getDb()
-    .prepare(`UPDATE drafts SET body = ?, updated_at = ? WHERE id = ?`)
-    .run(body, now, id);
+export async function updateDraftStatus(id: string, status: string, now: string): Promise<void> {
+  await getSupabase().from("drafts").update({ status, updated_at: now }).eq("id", id);
 }
 
-export function updateDraftStatus(id: string, status: string, now: string): void {
-  getDb()
-    .prepare(`UPDATE drafts SET status = ?, updated_at = ? WHERE id = ?`)
-    .run(status, now, id);
+export async function getRecentDraftBodies(limit = 10, userId?: string): Promise<string[]> {
+  const sb = getSupabase();
+  let query = sb.from("drafts").select("body")
+    .order("created_at", { ascending: false })
+    .limit(limit);
+  if (userId) query = query.eq("user_id", userId);
+  const { data } = await query;
+  return (data ?? []).map((r: { body: string }) => r.body);
 }
 
-export function getRecentDraftBodies(limit = 10): string[] {
-  return (getDb()
-    .prepare(`SELECT body FROM drafts ORDER BY created_at DESC LIMIT ?`)
-    .all(limit) as { body: string }[])
-    .map(r => r.body);
-}
-
-export function insertDraft(params: {
+export async function insertDraft(params: {
   id: string;
   body: string;
   status: string;
   inspiredByEventIds: string;
   similarityNote: string | null;
   personaId?: string | null;
+  userId?: string | null;
   now: string;
-}): void {
-  getDb()
-    .prepare(
-      `INSERT INTO drafts (id, body, status, inspired_by_event_ids, similarity_note, persona_id, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-    )
-    .run(
-      params.id,
-      params.body,
-      params.status,
-      params.inspiredByEventIds,
-      params.similarityNote,
-      params.personaId ?? null,
-      params.now,
-      params.now,
-    );
+}): Promise<void> {
+  await getSupabase().from("drafts").insert({
+    id: params.id,
+    body: params.body,
+    status: params.status,
+    inspired_by_event_ids: params.inspiredByEventIds,
+    similarity_note: params.similarityNote,
+    persona_id: params.personaId ?? null,
+    user_id: params.userId ?? null,
+    created_at: params.now,
+    updated_at: params.now,
+  });
+}
+
+export async function deleteDraft(id: string): Promise<void> {
+  await getSupabase().from("drafts").update({ status: "discarded", updated_at: new Date().toISOString() }).eq("id", id);
 }

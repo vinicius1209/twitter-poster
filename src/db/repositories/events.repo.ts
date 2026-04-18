@@ -1,104 +1,165 @@
-import { getDb, type RawEventRow } from "../index.js";
+import { randomUUID, createHash } from "node:crypto";
+import { getSupabase } from "../supabase.js";
+import type { ExtractedTweet } from "../../browser/collect.js";
 
-export function listEvents(limit: number, offset = 0): { data: RawEventRow[]; total: number } {
-  const db = getDb();
-  const total = (db.prepare(`SELECT COUNT(*) as c FROM raw_events`).get() as { c: number }).c;
-  const data = db
-    .prepare(
-      `SELECT id, source, author_handle, text_content, tweet_url, collected_at
-       FROM raw_events ORDER BY collected_at DESC LIMIT ? OFFSET ?`,
-    )
-    .all(limit, offset) as RawEventRow[];
-  return { data, total };
+function hashContent(text: string): string {
+  return createHash("sha256").update(text.trim(), "utf8").digest("hex");
 }
 
-export function getEventTextsSince(since: string, limit = 500): { id: string; text_content: string }[] {
-  return getDb()
-    .prepare(
-      `SELECT id, text_content FROM raw_events WHERE collected_at >= ? ORDER BY collected_at DESC LIMIT ?`,
-    )
-    .all(since, limit) as { id: string; text_content: string }[];
-}
-
-export function getRandomEventsSince(since: string, limit = 12): { id: string; text_content: string }[] {
-  return getDb()
-    .prepare(
-      `SELECT id, text_content FROM raw_events WHERE collected_at >= ? ORDER BY RANDOM() LIMIT ?`,
-    )
-    .all(since, limit) as { id: string; text_content: string }[];
-}
-
-/**
- * Ranking de autores por volume de engajamento (likes pesam mais).
- * Retorna os top N autores que o usuário mais curtiu/acompanhou.
- */
-export function getTopAuthors(since: string, limit = 10): { author_handle: string; score: number; count: number }[] {
-  return getDb()
-    .prepare(`
-      SELECT
-        e.author_handle,
-        SUM(COALESCE(s.weight, 1.0)) as score,
-        COUNT(*) as count
-      FROM raw_events e
-      LEFT JOIN engagement_signals s ON s.event_id = e.id
-      WHERE e.author_handle IS NOT NULL
-        AND e.collected_at >= ?
-      GROUP BY e.author_handle
-      ORDER BY score DESC
-      LIMIT ?
-    `)
-    .all(since, limit) as { author_handle: string; score: number; count: number }[];
-}
-
-/**
- * Busca tweets de um autor específico (para exemplos de estilo dos mentores).
- */
-export function getEventsByAuthor(authorHandle: string, since: string, limit = 10): { text_content: string }[] {
-  return getDb()
-    .prepare(
-      `SELECT text_content FROM raw_events WHERE author_handle = ? AND collected_at >= ? ORDER BY collected_at DESC LIMIT ?`,
-    )
-    .all(authorHandle, since, limit) as { text_content: string }[];
-}
-
-/**
- * Estatísticas agrupadas por fonte (likes, profile:handle, etc).
- */
-export function getCollectionStats(): {
+export type RawEventRow = {
+  id: string;
   source: string;
-  count: number;
-  latest: string;
-  hasMedia: number;
-}[] {
-  return getDb()
-    .prepare(`
-      SELECT
-        source,
-        COUNT(*) as count,
-        MAX(collected_at) as latest,
-        SUM(CASE WHEN raw_metadata LIKE '%mediaUrls":["%' THEN 1 ELSE 0 END) as hasMedia
-      FROM raw_events
-      GROUP BY source
-      ORDER BY count DESC
-    `)
-    .all() as { source: string; count: number; latest: string; hasMedia: number }[];
+  author_handle: string | null;
+  content_hash: string;
+  text_content: string;
+  tweet_url: string | null;
+  collected_at: string;
+  raw_metadata: string | null;
+  user_id: string | null;
+};
+
+export async function listEvents(limit: number, offset = 0, userId?: string): Promise<{ data: RawEventRow[]; total: number }> {
+  const sb = getSupabase();
+  let query = sb.from("raw_events").select("*", { count: "exact" })
+    .order("collected_at", { ascending: false })
+    .range(offset, offset + limit - 1);
+  if (userId) query = query.eq("user_id", userId);
+  const { data, count, error } = await query;
+  if (error) throw error;
+  return { data: (data ?? []) as RawEventRow[], total: count ?? 0 };
 }
 
-/**
- * Lista eventos filtrados por fonte, com metadata.
- */
-export function listEventsBySource(
+export async function listEventsBySource(source: string, limit: number, offset = 0, userId?: string): Promise<{ data: RawEventRow[]; total: number }> {
+  const sb = getSupabase();
+  let query = sb.from("raw_events").select("*", { count: "exact" })
+    .eq("source", source)
+    .order("collected_at", { ascending: false })
+    .range(offset, offset + limit - 1);
+  if (userId) query = query.eq("user_id", userId);
+  const { data, count, error } = await query;
+  if (error) throw error;
+  return { data: (data ?? []) as RawEventRow[], total: count ?? 0 };
+}
+
+export async function getEventTextsSince(since: string, limit = 500, userId?: string): Promise<{ id: string; text_content: string }[]> {
+  const sb = getSupabase();
+  let query = sb.from("raw_events").select("id, text_content")
+    .gte("collected_at", since)
+    .order("collected_at", { ascending: false })
+    .limit(limit);
+  if (userId) query = query.eq("user_id", userId);
+  const { data, error } = await query;
+  if (error) throw error;
+  return data ?? [];
+}
+
+export async function getRandomEventsSince(since: string, limit = 12, userId?: string): Promise<{ id: string; text_content: string }[]> {
+  // Supabase não tem ORDER BY RANDOM(), busca mais e faz shuffle em JS
+  const sb = getSupabase();
+  let query = sb.from("raw_events").select("id, text_content")
+    .gte("collected_at", since)
+    .limit(limit * 3);
+  if (userId) query = query.eq("user_id", userId);
+  const { data, error } = await query;
+  if (error) throw error;
+  const arr = data ?? [];
+  // Fisher-Yates shuffle
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr.slice(0, limit);
+}
+
+export async function getTopAuthors(since: string, limit = 10, userId?: string): Promise<{ author_handle: string; score: number; count: number }[]> {
+  const sb = getSupabase();
+  // Supabase não suporta aggregate queries complexas via client, usamos RPC ou query simples
+  let query = sb.from("raw_events").select("author_handle")
+    .gte("collected_at", since)
+    .not("author_handle", "is", null);
+  if (userId) query = query.eq("user_id", userId);
+  const { data, error } = await query;
+  if (error) throw error;
+
+  const counts = new Map<string, number>();
+  for (const row of data ?? []) {
+    const h = row.author_handle as string;
+    counts.set(h, (counts.get(h) ?? 0) + 1);
+  }
+
+  return [...counts.entries()]
+    .map(([author_handle, count]) => ({ author_handle, score: count * 1.0, count }))
+    .sort((a, b) => b.score - a.score)
+    .slice(0, limit);
+}
+
+export async function getEventsByAuthor(authorHandle: string, since: string, limit = 10): Promise<{ text_content: string }[]> {
+  const sb = getSupabase();
+  const { data, error } = await sb.from("raw_events").select("text_content")
+    .eq("author_handle", authorHandle)
+    .gte("collected_at", since)
+    .order("collected_at", { ascending: false })
+    .limit(limit);
+  if (error) throw error;
+  return data ?? [];
+}
+
+export async function getCollectionStats(userId?: string): Promise<{ source: string; count: number; latest: string; hasMedia: number }[]> {
+  const sb = getSupabase();
+  let query = sb.from("raw_events").select("source, collected_at, raw_metadata");
+  if (userId) query = query.eq("user_id", userId);
+  const { data, error } = await query;
+  if (error) throw error;
+
+  const stats = new Map<string, { count: number; latest: string; hasMedia: number }>();
+  for (const row of data ?? []) {
+    const s = row.source as string;
+    const existing = stats.get(s) ?? { count: 0, latest: "", hasMedia: 0 };
+    existing.count++;
+    if (row.collected_at > existing.latest) existing.latest = row.collected_at;
+    if (row.raw_metadata && JSON.stringify(row.raw_metadata).includes('"mediaUrls":["')) existing.hasMedia++;
+    stats.set(s, existing);
+  }
+
+  return [...stats.entries()]
+    .map(([source, s]) => ({ source, ...s }))
+    .sort((a, b) => b.count - a.count);
+}
+
+export async function insertEvents(
   source: string,
-  limit: number,
-  offset = 0,
-): { data: RawEventRow[]; total: number } {
-  const db = getDb();
-  const total = (db.prepare(`SELECT COUNT(*) as c FROM raw_events WHERE source = ?`).get(source) as { c: number }).c;
-  const data = db
-    .prepare(
-      `SELECT id, source, author_handle, text_content, tweet_url, collected_at, raw_metadata
-       FROM raw_events WHERE source = ? ORDER BY collected_at DESC LIMIT ? OFFSET ?`,
-    )
-    .all(source, limit, offset) as RawEventRow[];
-  return { data, total };
+  tweets: ExtractedTweet[],
+  signalType: "like" | "view",
+  userId?: string,
+): Promise<number> {
+  const sb = getSupabase();
+  const now = new Date().toISOString();
+  let inserted = 0;
+
+  for (const t of tweets) {
+    const id = randomUUID();
+    const { error } = await sb.from("raw_events").upsert({
+      id,
+      source,
+      author_handle: t.authorHandle,
+      content_hash: hashContent(t.text),
+      text_content: t.text,
+      tweet_url: t.tweetUrl,
+      collected_at: now,
+      raw_metadata: { tweetUrl: t.tweetUrl, mediaUrls: t.mediaUrls },
+      user_id: userId ?? null,
+    }, { onConflict: "content_hash,source", ignoreDuplicates: true });
+
+    if (!error) {
+      inserted++;
+      await sb.from("engagement_signals").insert({
+        id: randomUUID(),
+        event_id: id,
+        signal_type: signalType,
+        weight: signalType === "like" ? 1.5 : 1.0,
+      });
+    }
+  }
+
+  return inserted;
 }

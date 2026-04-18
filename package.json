@@ -27,7 +27,6 @@
     "@supabase/supabase-js": "^2.103.3",
     "@types/node": "^25.6.0",
     "@types/pg": "^8.20.0",
-    "better-sqlite3": "^12.9.0",
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
@@ -39,7 +38,6 @@
     "zod": "^4.3.6"
   },
   "devDependencies": {
-    "@types/better-sqlite3": "^7.6.13",
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",
     "@types/react": "^19.2.14",

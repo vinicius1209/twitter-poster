@@ -15,48 +15,35 @@ const draftGenBody = z.object({
   format: z.enum(["short", "long", "thread"]).default("short"),
 });
 
-router.post(
-  "/drafts/generate",
-  asyncHandler(async (req, res) => {
-    const body = draftGenBody.parse(req.body ?? {});
-    const result = await generateDraftJob({
-      windowHours: body.windowHours,
-      tone: body.tone,
-      count: body.count,
-      personaId: body.personaId,
-      format: body.format,
-    });
-    res.json(result);
-  }),
-);
+router.post("/drafts/generate", asyncHandler(async (req, res) => {
+  const body = draftGenBody.parse(req.body ?? {});
+  const result = await generateDraftJob(body);
+  res.json(result);
+}));
 
-router.get("/drafts", (req, res) => {
+router.get("/drafts", asyncHandler(async (req, res) => {
   const { page, limit, offset } = parsePagination(req);
-  const { data, total } = listDrafts(limit, offset);
+  const { data, total } = await listDrafts(limit, offset);
   res.json({ data, total, page, limit });
-});
+}));
 
 const patchDraft = z.object({
   status: z.enum(["draft", "pending_approval", "scheduled", "posted", "failed"]).optional(),
   body: z.string().optional(),
 });
 
-router.patch("/drafts/:id", (req, res) => {
+router.patch("/drafts/:id", asyncHandler(async (req, res) => {
   const parsed = patchDraft.parse(req.body ?? {});
   const now = new Date().toISOString();
-  if (parsed.body !== undefined) {
-    updateDraftBody(req.params.id, parsed.body, now);
-  }
-  if (parsed.status !== undefined) {
-    updateDraftStatus(req.params.id, parsed.status, now);
-  }
-  const row = getDraft(req.params.id);
+  if (parsed.body !== undefined) await updateDraftBody(req.params.id as string, parsed.body, now);
+  if (parsed.status !== undefined) await updateDraftStatus(req.params.id as string, parsed.status, now);
+  const row = await getDraft(req.params.id as string);
   res.json(row);
-});
+}));
 
-router.delete("/drafts/:id", (req, res) => {
-  deleteDraft(req.params.id as string);
+router.delete("/drafts/:id", asyncHandler(async (req, res) => {
+  await deleteDraft(req.params.id as string);
   res.json({ discarded: true });
-});
+}));
 
 export default router;

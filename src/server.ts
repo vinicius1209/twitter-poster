@@ -6,8 +6,7 @@ import { fileURLToPath } from "node:url";
 import { port } from "./config.js";
 import { requireAuth } from "./middleware/auth.js";
 import { errorHandler } from "./middleware/errorHandler.js";
-import { getDb, closeDb } from "./db/index.js";
-import { closePersistentContext, getPersistentContext } from "./browser/session.js";
+import { closePersistentContext } from "./browser/session.js";
 import { startPublishWorker, stopPublishWorker } from "./jobs/publishWorker.js";
 import { startMetricsWorker, stopMetricsWorker } from "./jobs/collectMetrics.js";
 
@@ -70,7 +69,6 @@ if (fs.existsSync(webDist)) {
 }
 
 // Bootstrap
-getDb();
 startPublishWorker();
 startMetricsWorker();
 
@@ -86,7 +84,6 @@ async function shutdown(): Promise<void> {
   stopMetricsWorker();
   server.close();
   await closePersistentContext().catch(() => {});
-  closeDb();
   console.log("Encerrado.");
   process.exit(0);
 }

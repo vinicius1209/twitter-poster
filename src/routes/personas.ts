@@ -1,26 +1,20 @@
 import { Router } from "express";
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
-import { httpError } from "../middleware/errorHandler.js";
-import {
-  listPersonas,
-  getPersona,
-  insertPersona,
-  updatePersona,
-  deletePersona,
-} from "../db/repositories/personas.repo.js";
+import { asyncHandler, httpError } from "../middleware/errorHandler.js";
+import { listPersonas, getPersona, insertPersona, updatePersona, deletePersona } from "../db/repositories/personas.repo.js";
 
 const router = Router();
 
-router.get("/personas", (_req, res) => {
-  res.json(listPersonas());
-});
+router.get("/personas", asyncHandler(async (_req, res) => {
+  res.json(await listPersonas());
+}));
 
-router.get("/personas/:id", (req, res) => {
-  const row = getPersona(req.params.id as string);
+router.get("/personas/:id", asyncHandler(async (req, res) => {
+  const row = await getPersona(req.params.id as string);
   if (!row) throw httpError(404, "Persona não encontrada.");
   res.json(row);
-});
+}));
 
 const personaBody = z.object({
   name: z.string().min(1),
@@ -30,11 +24,10 @@ const personaBody = z.object({
   icon: z.string().default("🤖"),
 });
 
-router.post("/personas", (req, res) => {
+router.post("/personas", asyncHandler(async (req, res) => {
   const body = personaBody.parse(req.body);
-  const row = insertPersona({ id: randomUUID(), ...body });
-  res.json(row);
-});
+  res.json(await insertPersona({ id: randomUUID(), ...body }));
+}));
 
 const personaPatch = z.object({
   name: z.string().min(1).optional(),
@@ -44,17 +37,17 @@ const personaPatch = z.object({
   icon: z.string().optional(),
 });
 
-router.patch("/personas/:id", (req, res) => {
+router.patch("/personas/:id", asyncHandler(async (req, res) => {
   const body = personaPatch.parse(req.body);
-  const row = updatePersona(req.params.id as string, body);
+  const row = await updatePersona(req.params.id as string, body);
   if (!row) throw httpError(404, "Persona não encontrada.");
   res.json(row);
-});
+}));
 
-router.delete("/personas/:id", (req, res) => {
-  const changes = deletePersona(req.params.id as string);
+router.delete("/personas/:id", asyncHandler(async (req, res) => {
+  const changes = await deletePersona(req.params.id as string);
   if (changes === 0) throw httpError(400, "Persona padrão não pode ser deletada.");
   res.json({ deleted: true });
-});
+}));
 
 export default router;

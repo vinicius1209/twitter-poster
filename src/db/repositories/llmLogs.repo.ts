@@ -1,56 +1,55 @@
-import { getDb, type LlmLogRow } from "../index.js";
+import { getSupabase } from "../supabase.js";
 
-export function insertLlmLog(params: {
+export type LlmLogRow = {
   id: string;
   operation: string;
   model: string;
-  promptPreview: string;
-  responsePreview: string | null;
-  tokensIn: number;
-  tokensOut: number;
-  durationMs: number;
+  prompt_preview: string;
+  response_preview: string | null;
+  tokens_in: number;
+  tokens_out: number;
+  duration_ms: number;
   error: string | null;
-}): void {
-  getDb()
-    .prepare(
-      `INSERT INTO llm_logs (id, operation, model, prompt_preview, response_preview, tokens_in, tokens_out, duration_ms, error, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`,
-    )
-    .run(
-      params.id, params.operation, params.model,
-      params.promptPreview.slice(0, 500),
-      params.responsePreview?.slice(0, 500) ?? null,
-      params.tokensIn, params.tokensOut, params.durationMs, params.error,
-    );
+  created_at: string;
+};
+
+export async function insertLlmLog(params: {
+  id: string; operation: string; model: string;
+  promptPreview: string; responsePreview: string | null;
+  tokensIn: number; tokensOut: number; durationMs: number;
+  error: string | null; userId?: string;
+}): Promise<void> {
+  await getSupabase().from("llm_logs").insert({
+    id: params.id, operation: params.operation, model: params.model,
+    prompt_preview: params.promptPreview.slice(0, 500),
+    response_preview: params.responsePreview?.slice(0, 500) ?? null,
+    tokens_in: params.tokensIn, tokens_out: params.tokensOut,
+    duration_ms: params.durationMs, error: params.error,
+    user_id: params.userId ?? null, created_at: new Date().toISOString(),
+  });
 }
 
-export function listLlmLogs(limit = 50): LlmLogRow[] {
-  return getDb()
-    .prepare("SELECT * FROM llm_logs ORDER BY created_at DESC LIMIT ?")
-    .all(limit) as LlmLogRow[];
+export async function listLlmLogs(limit = 50): Promise<LlmLogRow[]> {
+  const { data } = await getSupabase().from("llm_logs").select("*")
+    .order("created_at", { ascending: false })
+    .limit(limit);
+  return (data ?? []) as LlmLogRow[];
 }
 
-export function getLlmUsageSummary(): {
-  totalCalls: number;
-  totalTokensIn: number;
-  totalTokensOut: number;
-  totalErrors: number;
-  estimatedCostUsd: number;
-} {
-  const row = getDb()
-    .prepare(`
-      SELECT
-        COUNT(*) as totalCalls,
-        COALESCE(SUM(tokens_in), 0) as totalTokensIn,
-        COALESCE(SUM(tokens_out), 0) as totalTokensOut,
-        SUM(CASE WHEN error IS NOT NULL THEN 1 ELSE 0 END) as totalErrors
-      FROM llm_logs
-    `)
-    .get() as { totalCalls: number; totalTokensIn: number; totalTokensOut: number; totalErrors: number };
-
-  // Estimativa de custo: gpt-4o-mini ~$0.15/1M input, $0.60/1M output
-  const costIn = (row.totalTokensIn / 1_000_000) * 0.15;
-  const costOut = (row.totalTokensOut / 1_000_000) * 0.60;
-
-  return { ...row, estimatedCostUsd: Math.round((costIn + costOut) * 100) / 100 };
+export async function getLlmUsageSummary(): Promise<{
+  totalCalls: number; totalTokensIn: number; totalTokensOut: number;
+  totalErrors: number; estimatedCostUsd: number;
+}> {
+  const { data } = await getSupabase().from("llm_logs").select("tokens_in, tokens_out, error");
+  const rows = data ?? [];
+  const totalTokensIn = rows.reduce((a: number, r: any) => a + (r.tokens_in ?? 0), 0);
+  const totalTokensOut = rows.reduce((a: number, r: any) => a + (r.tokens_out ?? 0), 0);
+  const costIn = (totalTokensIn / 1_000_000) * 0.15;
+  const costOut = (totalTokensOut / 1_000_000) * 0.60;
+  return {
+    totalCalls: rows.length,
+    totalTokensIn, totalTokensOut,
+    totalErrors: rows.filter((r: any) => r.error != null).length,
+    estimatedCostUsd: Math.round((costIn + costOut) * 100) / 100,
+  };
 }

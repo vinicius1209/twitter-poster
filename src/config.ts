@@ -10,7 +10,6 @@ export const dataDir = process.env.DATA_DIR
   : path.join(cwd, "data");
 
 export const browserUserDataDir = path.join(dataDir, "browser-profile");
-export const dbPath = path.join(dataDir, "app.db");
 
 export const xUserHandle = (process.env.X_USER_HANDLE ?? "").replace(/^@/, "");
 
@@ -29,9 +28,8 @@ export const openaiModel = process.env.OPENAI_MODEL ?? "gpt-4o-mini";
 export const openaiEmbeddingModel =
   process.env.OPENAI_EMBEDDING_MODEL ?? "text-embedding-3-small";
 
-// ── Database ────────────────────────────────────────────────────────
+// ── Database (Supabase) ─────────────────────────────────────────────
 
-export const dbProvider = (process.env.DB_PROVIDER ?? "sqlite") as "sqlite" | "supabase";
 export const supabaseUrl = process.env.SUPABASE_URL ?? "";
 export const supabaseKey = process.env.SUPABASE_KEY ?? "";
 
