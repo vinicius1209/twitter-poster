@@ -1,0 +1,15 @@
+CREATE TABLE IF NOT EXISTS users (
+  id TEXT PRIMARY KEY,
+  email TEXT NOT NULL UNIQUE,
+  plan TEXT NOT NULL DEFAULT 'free',
+  agent_token TEXT UNIQUE,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+ALTER TABLE authors ADD COLUMN user_id TEXT REFERENCES users(id);
+ALTER TABLE raw_events ADD COLUMN user_id TEXT REFERENCES users(id);
+ALTER TABLE drafts ADD COLUMN user_id TEXT REFERENCES users(id);
+ALTER TABLE scheduled_posts ADD COLUMN user_id TEXT REFERENCES users(id);
+ALTER TABLE topic_runs ADD COLUMN user_id TEXT REFERENCES users(id);
+ALTER TABLE post_metrics ADD COLUMN user_id TEXT REFERENCES users(id);
+ALTER TABLE llm_logs ADD COLUMN user_id TEXT REFERENCES users(id)

@@ -1,0 +1,38 @@
+# Dependencies
+node_modules/
+landing/node_modules/
+
+# Build artifacts
+dist/
+web/dist/
+landing/dist/
+packages/*/dist/
+
+# Data (SQLite, browser profile, crash dumps)
+data/
+
+# Environment (NUNCA commitar)
+.env
+.env.local
+.env.*.local
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Temporary
+*.tmp
+.turbo/
+
+# Claude Code
+.claude/

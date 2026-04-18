@@ -1,0 +1,54 @@
+{
+  "name": "twitter-poster",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Assistente local para X: Playwright + SQLite + análise opcional (sem API do X)",
+  "workspaces": [
+    "packages/shared",
+    "packages/agent",
+    "packages/core"
+  ],
+  "scripts": {
+    "dev": "concurrently -k \"npm run dev:api\" \"npm run dev:web\"",
+    "dev:api": "tsx watch src/server.ts",
+    "dev:web": "vite --config web/vite.config.ts",
+    "build": "tsc && vite build --config web/vite.config.ts",
+    "start": "node dist/server.js",
+    "health": "tsx src/cli/health.ts",
+    "migrate:supabase": "tsx src/db/supabase-migrate.ts",
+    "typecheck": "tsc --noEmit",
+    "typecheck:packages": "tsc -b packages/shared packages/agent packages/core",
+    "test": "vitest run --exclude tests/browser-integration.test.ts",
+    "test:watch": "vitest --exclude tests/browser-integration.test.ts",
+    "test:browser": "vitest run tests/browser-integration.test.ts"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.103.3",
+    "@types/node": "^25.6.0",
+    "@types/pg": "^8.20.0",
+    "better-sqlite3": "^12.9.0",
+    "cors": "^2.8.6",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "openai": "^6.34.0",
+    "pg": "^8.20.0",
+    "playwright": "^1.59.1",
+    "tsx": "^4.21.0",
+    "typescript": "^6.0.2",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^6.0.1",
+    "concurrently": "^9.2.1",
+    "react": "^19.2.5",
+    "react-dom": "^19.2.5",
+    "vite": "^8.0.8",
+    "vitest": "^4.1.4"
+  }
+}
