@@ -41,24 +41,45 @@ export type QuickSessionStatus = {
   hint: string;
 };
 
+/** Faz polling de uma task até completar ou falhar */
+async function pollTask<T>(taskId: string, maxWaitMs = 60_000, intervalMs = 2000): Promise<T> {
+  const start = Date.now();
+  while (Date.now() - start < maxWaitMs) {
+    const task = await request<{ status: string; result: T | null; error: string | null }>(`/api/agent/tasks/${taskId}`);
+    if (task.status === "completed" && task.result) return task.result;
+    if (task.status === "failed") throw new Error(task.error ?? "Task falhou");
+    await new Promise(r => setTimeout(r, intervalMs));
+  }
+  throw new Error("Timeout — agent não respondeu. Verifique se o agent está rodando.");
+}
+
 export const api = {
-  /** Rápido — checa se perfil existe no disco, sem abrir browser */
   getSessionQuick: () => request<QuickSessionStatus>("/api/session/quick"),
 
-  /** Completo — abre browser, navega ao X, verifica login. Demora 10-30s */
-  getSession: () => request<SessionHealth>("/api/session"),
+  /** Cria task de verificação e faz polling até o agent responder */
+  getSession: async (): Promise<SessionHealth> => {
+    const { taskId } = await request<{ taskId: string }>("/api/session");
+    const result = await pollTask<SessionHealth>(taskId, 30_000);
+    return result;
+  },
 
-  syncLikes: (maxScrolls = 8, maxTweets = 80) =>
-    request<{ ok: boolean; message: string; inserted: number }>("/api/sync/likes", {
+  syncLikes: async (maxScrolls = 8, maxTweets = 80) => {
+    const { taskId } = await request<{ taskId: string }>("/api/sync/likes", {
       method: "POST",
       body: JSON.stringify({ maxScrolls, maxTweets }),
-    }),
+    });
+    await pollTask(taskId, 120_000, 3000); // coleta pode demorar até 2min
+    return { ok: true, message: "Coleta concluída pelo agent.", inserted: 0 };
+  },
 
-  syncProfile: (handle: string, maxScrolls = 8, maxTweets = 80) =>
-    request<{ ok: boolean; message: string; inserted: number }>(
+  syncProfile: async (handle: string, maxScrolls = 8, maxTweets = 80) => {
+    const { taskId } = await request<{ taskId: string }>(
       `/api/sync/profile/${encodeURIComponent(handle)}`,
       { method: "POST", body: JSON.stringify({ maxScrolls, maxTweets }) },
-    ),
+    );
+    await pollTask(taskId, 120_000, 3000);
+    return { ok: true, message: `Perfil @${handle} coletado pelo agent.`, inserted: 0 };
+  },
 
   syncWatchlist: () =>
     request<{ results: { handle: string; inserted: number; message: string }[] }>(
