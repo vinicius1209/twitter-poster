@@ -1,43 +1,28 @@
 import { Router } from "express";
 import { asyncHandler } from "../middleware/errorHandler.js";
-import { checkSessionHealth } from "../browser/healthcheck.js";
-import { getBrowserProfilePath } from "../browser/session.js";
-import fs from "node:fs";
-import path from "node:path";
-import { browserUserDataDir } from "../config.js";
+import { createTask, listTasks } from "../db/repositories/agentTasks.repo.js";
 
 const router = Router();
 
-router.get("/config", (_req, res) => {
-  res.json({ browserProfilePath: getBrowserProfilePath() });
+router.get("/config", (_req: any, res: any) => {
+  res.json({ mode: "cloud", browserManaged: "agent" });
 });
 
-/**
- * Verificação rápida — NÃO abre o browser.
- * Checa se o perfil e cookies existem no disco.
- */
-router.get("/session/quick", (_req, res) => {
-  const cookiesPath = path.join(browserUserDataDir, "Default", "Cookies");
-  const profileExists = fs.existsSync(cookiesPath);
-  res.json({
-    ok: true,
-    profileExists,
-    hint: profileExists
-      ? "Perfil encontrado. Clique 'Verificar sessão' para testar o login no X."
-      : "Perfil não encontrado. Rode 'npm run health' para criar e fazer login.",
-  });
-});
+/** Verificação rápida — checa se agent reportou sessão recentemente */
+router.get("/session/quick", asyncHandler(async (_req, res) => {
+  const tasks = await listTasks("completed", 1);
+  const lastSession = tasks.find(t => t.type === "check_session");
+  if (lastSession?.result) {
+    res.json({ ok: true, profileExists: true, hint: "Última verificação pelo agent.", ...lastSession.result });
+  } else {
+    res.json({ ok: true, profileExists: false, hint: "Agent não verificou a sessão ainda. Inicie o agent no seu computador." });
+  }
+}));
 
-/**
- * Verificação completa — abre o browser, navega ao X, checa login.
- * Pode demorar 10-30s.
- */
-router.get(
-  "/session",
-  asyncHandler(async (_req, res) => {
-    const h = await checkSessionHealth();
-    res.json(h);
-  }),
-);
+/** Verificação completa — cria task para o agent verificar */
+router.get("/session", asyncHandler(async (_req, res) => {
+  const task = await createTask("check_session", {});
+  res.json({ taskId: task.id, status: "pending", hint: "Verificação enfileirada. Aguardando agent..." });
+}));
 
 export default router;

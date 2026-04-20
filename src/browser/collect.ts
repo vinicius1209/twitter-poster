@@ -34,12 +34,8 @@ async function scrollForMore(page: Page, times: number): Promise<void> {
   }
 }
 
-export type ExtractedTweet = {
-  text: string;
-  tweetUrl: string | null;
-  authorHandle: string | null;
-  mediaUrls: string[];
-};
+import type { ExtractedTweet } from "../shared/types.js";
+export type { ExtractedTweet } from "../shared/types.js";
 
 async function extractTweetsFromPage(
   page: Page,

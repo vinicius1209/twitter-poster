@@ -26,6 +26,7 @@ export const playwrightChannel =
 export const port = Number(process.env.PORT ?? 3847);
 
 export const apiToken = process.env.API_TOKEN ?? "";
+export const agentToken = process.env.AGENT_TOKEN ?? "";
 
 export const openaiApiKey = process.env.OPENAI_API_KEY ?? "";
 export const openaiModel = process.env.OPENAI_MODEL ?? "gpt-4o-mini";

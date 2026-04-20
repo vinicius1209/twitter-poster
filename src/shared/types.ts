@@ -87,3 +87,36 @@ export type SessionHealth = {
   hint: string;
   debug?: Record<string, unknown>;
 };
+
+// ── Browser/Agent types ─────────────────────────────────────────
+
+export type ExtractedTweet = {
+  text: string;
+  tweetUrl: string | null;
+  authorHandle: string | null;
+  mediaUrls: string[];
+};
+
+// ── Agent Task Queue ────────────────────────────────────────────
+
+export type AgentTaskType =
+  | "collect_likes"
+  | "collect_profile"
+  | "publish_post"
+  | "collect_metrics"
+  | "check_session";
+
+export type AgentTaskStatus = "pending" | "running" | "completed" | "failed";
+
+export type AgentTask = {
+  id: string;
+  type: AgentTaskType;
+  status: AgentTaskStatus;
+  payload: Record<string, unknown>;
+  result: Record<string, unknown> | null;
+  error: string | null;
+  created_at: string;
+  started_at: string | null;
+  completed_at: string | null;
+  user_id: string | null;
+};

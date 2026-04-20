@@ -1,15 +1,7 @@
-import { WORKER_MAX_ATTEMPTS, WORKER_BACKOFF_SECONDS, xUserHandle, browserEnabled } from "../config.js";
-import { postTweetViaUi } from "../browser/post.js";
+import { xUserHandle } from "../config.js";
 import { delay } from "../util/delay.js";
-import { updateDraftStatus } from "../db/repositories/drafts.repo.js";
-import {
-  getNextScheduledPost,
-  setScheduledAttempts,
-  markScheduledPosted,
-  markScheduledFailed,
-  reschedulePost,
-  updateScheduledTweetUrl,
-} from "../db/repositories/scheduled.repo.js";
+import { getNextScheduledPost, setScheduledAttempts } from "../db/repositories/scheduled.repo.js";
+import { createTask } from "../db/repositories/agentTasks.repo.js";
 
 let timer: ReturnType<typeof setInterval> | null = null;
 
@@ -23,30 +15,28 @@ export function stopPublishWorker(): void {
   if (timer) { clearInterval(timer); timer = null; }
 }
 
+/**
+ * Verifica se há posts agendados para publicar.
+ * Em vez de chamar o browser diretamente, cria uma task para o agent.
+ */
 async function tickPublishQueue(): Promise<void> {
-  if (!browserEnabled) return; // Cloud mode — browser operations disabled
-  const now = new Date().toISOString();
-  const row = await getNextScheduledPost(now);
-  if (!row) return;
+  try {
+    const now = new Date().toISOString();
+    const row = await getNextScheduledPost(now);
+    if (!row) return;
 
-  const attempt = row.attempts + 1;
-  await setScheduledAttempts(row.id, attempt);
+    await setScheduledAttempts(row.id, row.attempts + 1);
 
-  const result = await postTweetViaUi(row.body, xUserHandle || undefined);
+    await createTask("publish_post", {
+      body: row.body,
+      scheduledPostId: row.id,
+      draftId: row.draft_id,
+      userHandle: xUserHandle || undefined,
+    });
 
-  if (result.ok) {
-    await markScheduledPosted(row.id);
-    if (result.tweetUrl) await updateScheduledTweetUrl(row.id, result.tweetUrl);
-    if (row.draft_id) await updateDraftStatus(row.draft_id, "posted", now);
-  } else {
-    const err = result.error ?? "Erro desconhecido";
-    if (attempt >= WORKER_MAX_ATTEMPTS) {
-      await markScheduledFailed(row.id, `${err} (após ${WORKER_MAX_ATTEMPTS} tentativas)`);
-    } else {
-      const backoffSec = WORKER_BACKOFF_SECONDS[attempt - 1] ?? 600;
-      const nextRun = new Date(Date.now() + backoffSec * 1000).toISOString();
-      await reschedulePost(row.id, nextRun, `Tentativa ${attempt}/${WORKER_MAX_ATTEMPTS}: ${err}`);
-    }
+    console.log(`[publishWorker] Task criada para post ${row.id}`);
+  } catch (err) {
+    console.error("[publishWorker] erro:", err instanceof Error ? err.message : err);
   }
 
   await delay(2000);

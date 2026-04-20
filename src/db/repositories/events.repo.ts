@@ -1,6 +1,6 @@
 import { randomUUID, createHash } from "node:crypto";
 import { getSupabase } from "../supabase.js";
-import type { ExtractedTweet } from "../../browser/collect.js";
+import type { ExtractedTweet } from "../../shared/types.js";
 
 function hashContent(text: string): string {
   return createHash("sha256").update(text.trim(), "utf8").digest("hex");

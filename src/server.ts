@@ -6,9 +6,7 @@ import { fileURLToPath } from "node:url";
 import { port } from "./config.js";
 import { requireAuth } from "./middleware/auth.js";
 import { errorHandler } from "./middleware/errorHandler.js";
-import { closePersistentContext } from "./browser/session.js";
 import { startPublishWorker, stopPublishWorker } from "./jobs/publishWorker.js";
-import { startMetricsWorker, stopMetricsWorker } from "./jobs/collectMetrics.js";
 
 // Routes
 import healthRoutes from "./routes/health.js";
@@ -26,6 +24,7 @@ import ghostwriterRoutes from "./routes/ghostwriter.js";
 import llmLogsRoutes from "./routes/llmLogs.js";
 import authRoutes from "./routes/auth.js";
 import plansRoutes from "./routes/plans.js";
+import agentRoutes from "./routes/agent.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -52,6 +51,7 @@ app.use("/api", metricsRoutes);
 app.use("/api", profileStudyRoutes);
 app.use("/api", ghostwriterRoutes);
 app.use("/api", llmLogsRoutes);
+app.use("/api", agentRoutes);
 
 // Error handler centralizado
 app.use(errorHandler);
@@ -60,30 +60,25 @@ app.use(errorHandler);
 const webDist = path.join(__dirname, "..", "web", "dist");
 if (fs.existsSync(webDist)) {
   app.use(express.static(webDist));
-  app.get(/^(?!\/api\/).*/, (req, res, next) => {
-    if (req.method !== "GET" || req.path.startsWith("/api/")) {
-      return next();
-    }
+  app.get(/^(?!\/api\/).*/, (req: any, res: any, next: any) => {
+    if (req.method !== "GET" || req.path.startsWith("/api/")) return next();
     res.sendFile(path.join(webDist, "index.html"));
   });
 }
 
-// Bootstrap
+// Bootstrap — ZERO browser, ZERO Playwright
 startPublishWorker();
-startMetricsWorker();
 
 const server = app.listen(port, () => {
   console.log(`API em http://127.0.0.1:${port}`);
-  console.log("Navegador será aberto na primeira operação que precisar dele.");
+  console.log("Core pronto. Inicie o agent no desktop para operações de browser.");
 });
 
 // Graceful shutdown
 async function shutdown(): Promise<void> {
   console.log("\nEncerrando...");
   stopPublishWorker();
-  stopMetricsWorker();
   server.close();
-  await closePersistentContext().catch(() => {});
   console.log("Encerrado.");
   process.exit(0);
 }
