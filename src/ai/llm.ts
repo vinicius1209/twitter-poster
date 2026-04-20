@@ -408,18 +408,26 @@ export async function generateThreadWithLlm(params: {
       contextSection = `\nPosts anteriores da thread (mantenha coerência narrativa):\n${posts.map((p, idx) => `[${idx + 1}/${threadLength}] ${p}`).join("\n\n")}`;
     }
 
+    const roleMap: Record<string, string> = {
+      first: `PRIMEIRO post da thread — gancho irresistível. 1-2 frases que fazem parar de scrollar. Curto, provocativo, sem explicação. Crie curiosidade para o próximo post.`,
+      middle: `Post ${i + 1} de ${threadLength} — DESENVOLVA com dados concretos, exemplos reais, ou analogias. Cada post deve adicionar uma camada nova ao argumento, não repetir o anterior.`,
+      last: `ÚLTIMO post — conclusão forte. O insight principal. Uma frase que gruda na cabeça. SEM call to action genérica (nada de "Fique ligado", "Comente", "E você?").`,
+    };
+    const role = isFirst ? "first" : isLast ? "last" : "middle";
+
     const prompt = `Escreva o post ${i + 1} de ${threadLength} de uma thread para o X, em português brasileiro.
 Tom: ${params.tone}
-Máximo 280 caracteres.
+Máximo 280 caracteres. O post DEVE ser completo — nunca cortado no meio.
 
-${isFirst ? "Este é o PRIMEIRO post — deve ser um gancho irresistível que faz parar de scrollar. Curto, impactante, provoca curiosidade." : ""}
-${isLast ? "Este é o ÚLTIMO post — deve ser o insight principal, a conclusão forte. Sem CTA genérica." : ""}
-${!isFirst && !isLast ? `Este é o post ${i + 1} de ${threadLength} — desenvolva o argumento, adicione dados ou exemplos.` : ""}
+${roleMap[role]}
+
+PROIBIDO: "Fique ligado", "Vamos explorar", "Comente aqui", "E você?", "Compartilhe", call to action genérica.
+Escreva como pessoa real, não como AI motivacional.
 ${contextSection}
 
 Temas: ${params.topicsSummary.slice(0, 500)}
 
-Responda APENAS o texto do post, sem aspas, sem numeração.`;
+Responda APENAS o texto do post, sem aspas, sem numeração, sem prefixo.`;
 
     const messages: { role: "system" | "user"; content: string }[] = [];
     if (params.systemPrompt) messages.push({ role: "system", content: params.systemPrompt });

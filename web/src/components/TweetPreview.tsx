@@ -1,6 +1,6 @@
 /**
  * Preview de tweet no estilo visual do X/Twitter.
- * Mostra como o post ficaria publicado.
+ * Thread: cards com linha vertical conectando os avatares (como no X real).
  */
 
 type Props = {
@@ -11,93 +11,102 @@ type Props = {
 };
 
 export function TweetPreview({ body, handle = "you", displayName = "You", isThread = false }: Props) {
-  const posts = isThread ? body.split(/\n---\n/) : [body];
+  const posts = isThread ? body.split(/\n---\n/).filter(p => p.trim()) : [body];
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
-      {posts.map((post, i) => (
-        <div
-          key={i}
-          style={{
-            background: "#000",
-            border: "1px solid #2f3336",
-            borderTop: i > 0 ? "none" : undefined,
-            borderRadius: i === 0 && posts.length > 1 ? "16px 16px 0 0" : i === posts.length - 1 && posts.length > 1 ? "0 0 16px 16px" : posts.length === 1 ? "16px" : "0",
-            padding: "12px 16px",
-            fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-          }}
-        >
-          {/* Header */}
-          <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "4px" }}>
-            {/* Avatar */}
-            <div style={{
-              width: 40, height: 40, borderRadius: "50%",
-              background: "linear-gradient(135deg, #6366f1, #8b5cf6)",
-              display: "flex", alignItems: "center", justifyContent: "center",
-              color: "#fff", fontWeight: 700, fontSize: "0.85rem",
-              flexShrink: 0,
-            }}>
-              {displayName[0]?.toUpperCase() ?? "?"}
-            </div>
-            <div style={{ display: "flex", flexDirection: "column" }}>
-              <span style={{ color: "#e7e9ea", fontWeight: 700, fontSize: "0.94rem" }}>
-                {displayName}
-              </span>
-              <span style={{ color: "#71767b", fontSize: "0.84rem" }}>
-                @{handle}
-              </span>
-            </div>
-            {isThread && posts.length > 1 && (
-              <span style={{
-                marginLeft: "auto", fontSize: "0.72rem", color: "#71767b",
-                background: "#1d1f23", padding: "2px 8px", borderRadius: "12px",
-              }}>
-                {i + 1}/{posts.length}
-              </span>
-            )}
-          </div>
+    <div style={{
+      background: "#000",
+      border: "1px solid #2f3336",
+      borderRadius: "16px",
+      overflow: "hidden",
+      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+    }}>
+      {posts.map((post, i) => {
+        const isLast = i === posts.length - 1;
+        const showConnector = !isLast && posts.length > 1;
+        const charCount = post.trim().length;
 
-          {/* Thread connector line */}
-          {i < posts.length - 1 && posts.length > 1 && (
-            <div style={{
-              position: "relative",
-            }}>
+        return (
+          <div
+            key={i}
+            style={{
+              padding: "12px 16px",
+              borderTop: i > 0 ? "1px solid #2f3336" : undefined,
+              display: "flex",
+              gap: "12px",
+            }}
+          >
+            {/* Avatar column with connector */}
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", flexShrink: 0 }}>
               <div style={{
-                position: "absolute", left: 19, bottom: -12, width: 2, height: 12,
-                background: "#333639",
-              }} />
+                width: 40, height: 40, borderRadius: "50%",
+                background: "linear-gradient(135deg, #6366f1, #8b5cf6)",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                color: "#fff", fontWeight: 700, fontSize: "0.85rem",
+              }}>
+                {displayName[0]?.toUpperCase() ?? "?"}
+              </div>
+              {showConnector && (
+                <div style={{
+                  width: 2, flex: 1, minHeight: 12,
+                  background: "#333639", marginTop: 4,
+                }} />
+              )}
             </div>
-          )}
 
-          {/* Body */}
-          <div style={{
-            color: "#e7e9ea",
-            fontSize: "0.94rem",
-            lineHeight: 1.5,
-            whiteSpace: "pre-wrap",
-            wordBreak: "break-word",
-            marginTop: "4px",
-          }}>
-            {post.trim()}
-          </div>
+            {/* Content column */}
+            <div style={{ flex: 1, minWidth: 0 }}>
+              {/* Header */}
+              <div style={{ display: "flex", alignItems: "center", gap: "4px", marginBottom: "2px" }}>
+                <span style={{ color: "#e7e9ea", fontWeight: 700, fontSize: "0.94rem" }}>
+                  {displayName}
+                </span>
+                <span style={{ color: "#71767b", fontSize: "0.84rem" }}>
+                  @{handle}
+                </span>
+                {posts.length > 1 && (
+                  <span style={{
+                    marginLeft: "auto", fontSize: "0.7rem", color: "#71767b",
+                    background: "#1d1f23", padding: "1px 6px", borderRadius: "10px",
+                  }}>
+                    {i + 1}/{posts.length}
+                  </span>
+                )}
+              </div>
 
-          {/* Footer — engagement mockup */}
-          <div style={{
-            display: "flex", gap: "48px", marginTop: "12px", paddingTop: "4px",
-          }}>
-            {[
-              { icon: "💬", label: "Reply" },
-              { icon: "🔄", label: "Repost" },
-              { icon: "❤️", label: "Like" },
-              { icon: "📊", label: "View" },
-            ].map((a) => (
-              <span key={a.label} style={{ color: "#71767b", fontSize: "0.8rem", cursor: "default" }}>
-                {a.icon}
-              </span>
-            ))}
+              {/* Body */}
+              <div style={{
+                color: "#e7e9ea",
+                fontSize: "0.94rem",
+                lineHeight: 1.5,
+                whiteSpace: "pre-wrap",
+                wordBreak: "break-word",
+              }}>
+                {post.trim()}
+              </div>
+
+              {/* Char counter */}
+              <div style={{
+                fontSize: "0.7rem", color: charCount > 280 ? "#f4212e" : "#71767b",
+                textAlign: "right", marginTop: "4px",
+              }}>
+                {charCount}/280
+              </div>
+
+              {/* Footer */}
+              <div style={{
+                display: "flex", gap: "40px", marginTop: "4px",
+                color: "#71767b", fontSize: "0.82rem",
+              }}>
+                <span>💬</span>
+                <span>🔄</span>
+                <span>❤️</span>
+                <span>📊</span>
+              </div>
+            </div>
           </div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }

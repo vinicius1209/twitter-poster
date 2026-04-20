@@ -47,7 +47,7 @@ function DraftCard({
       <div className="item-card-header">
         <div style={{ display: "flex", gap: "0.4rem", alignItems: "center" }}>
           <span className={`badge ${draft.status === "posted" ? "ok" : draft.status === "failed" ? "err" : "warn"}`}>
-            {draft.status}
+            {{ pending_approval: "Aguardando aprovação", draft: "Rascunho", scheduled: "Agendado", posted: "Publicado", failed: "Falhou", discarded: "Descartado" }[draft.status] ?? draft.status}
           </span>
           {persona && (
             <span style={{ fontSize: "0.78rem", color: "var(--text-dim)" }}>
