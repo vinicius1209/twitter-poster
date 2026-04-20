@@ -13,6 +13,10 @@ export const browserUserDataDir = path.join(dataDir, "browser-profile");
 
 export const xUserHandle = (process.env.X_USER_HANDLE ?? "").replace(/^@/, "");
 
+/** Se false, operações de browser (coleta, publicação) são desabilitadas.
+ *  No Railway/cloud, deve ser false — browser só roda no laptop do usuário. */
+export const browserEnabled = process.env.BROWSER_ENABLED !== "false";
+
 export const playwrightChannel =
   process.env.PLAYWRIGHT_CHANNEL === "chrome" ||
   process.env.PLAYWRIGHT_CHANNEL === "msedge"

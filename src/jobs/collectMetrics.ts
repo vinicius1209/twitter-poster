@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { xUserHandle } from "../config.js";
+import { xUserHandle, browserEnabled } from "../config.js";
 import { selectors } from "../browser/selectors.js";
 import { getPersistentContext } from "../browser/session.js";
 import { enqueue } from "../browser/queue.js";
@@ -13,6 +13,7 @@ function parseAriaNumber(ariaLabel: string | null): number {
 }
 
 export async function collectMetricsJob(): Promise<{ collected: number; errors: string[] }> {
+  if (!browserEnabled) return { collected: 0, errors: ["Browser desabilitado na cloud"] };
   const posts = await getPostsNeedingMetrics();
   if (posts.length === 0) return { collected: 0, errors: [] };
 

@@ -5,6 +5,7 @@ import {
   browserUserDataDir,
   dataDir,
   playwrightChannel,
+  browserEnabled,
 } from "../config.js";
 
 let contextPromise: Promise<BrowserContext> | null = null;
@@ -85,6 +86,9 @@ async function applyStealthPatches(ctx: BrowserContext): Promise<void> {
  * Patches anti-detecção são injetados via addInitScript (sem banners).
  */
 export function getPersistentContext(): Promise<BrowserContext> {
+  if (!browserEnabled) {
+    return Promise.reject(new Error("Browser desabilitado (BROWSER_ENABLED=false). Operações de browser só funcionam no agent local."));
+  }
   if (!contextPromise) {
     ensureDataDir();
     fs.mkdirSync(path.join(dataDir, "crash-dumps"), { recursive: true });

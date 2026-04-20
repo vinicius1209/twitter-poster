@@ -1,4 +1,4 @@
-import { WORKER_MAX_ATTEMPTS, WORKER_BACKOFF_SECONDS, xUserHandle } from "../config.js";
+import { WORKER_MAX_ATTEMPTS, WORKER_BACKOFF_SECONDS, xUserHandle, browserEnabled } from "../config.js";
 import { postTweetViaUi } from "../browser/post.js";
 import { delay } from "../util/delay.js";
 import { updateDraftStatus } from "../db/repositories/drafts.repo.js";
@@ -24,6 +24,7 @@ export function stopPublishWorker(): void {
 }
 
 async function tickPublishQueue(): Promise<void> {
+  if (!browserEnabled) return; // Cloud mode — browser operations disabled
   const now = new Date().toISOString();
   const row = await getNextScheduledPost(now);
   if (!row) return;
