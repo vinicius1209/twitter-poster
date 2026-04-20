@@ -27,6 +27,8 @@ export const port = Number(process.env.PORT ?? 3847);
 
 export const apiToken = process.env.API_TOKEN ?? "";
 export const agentToken = process.env.AGENT_TOKEN ?? "";
+export const frontendUrl = process.env.FRONTEND_URL ?? "";
+export const isProduction = process.env.NODE_ENV === "production";
 
 export const openaiApiKey = process.env.OPENAI_API_KEY ?? "";
 export const openaiModel = process.env.OPENAI_MODEL ?? "gpt-4o-mini";
@@ -37,6 +39,12 @@ export const openaiEmbeddingModel =
 
 export const supabaseUrl = process.env.SUPABASE_URL ?? "";
 export const supabaseKey = process.env.SUPABASE_KEY ?? "";
+
+// Fail-fast: validação de env vars obrigatórias
+if (!supabaseUrl || !supabaseKey) {
+  console.error("FATAL: SUPABASE_URL e SUPABASE_KEY são obrigatórios.");
+  process.exit(1);
+}
 
 // ── Constantes de operação ──────────────────────────────────────────
 

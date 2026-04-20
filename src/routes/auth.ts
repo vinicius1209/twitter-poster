@@ -14,14 +14,14 @@ router.post("/auth/signup", asyncHandler(async (req, res) => {
   const { email, password } = authBody.parse(req.body);
   const { data, error } = await getSupabase().auth.signUp({ email, password });
   if (error) { res.status(400).json({ error: error.message }); return; }
-  res.json({ user: { id: data.user?.id, email: data.user?.email }, session: data.session });
+  res.json({ user: { id: data.user?.id, email: data.user?.email }, accessToken: data.session?.access_token });
 }));
 
 router.post("/auth/login", asyncHandler(async (req, res) => {
   const { email, password } = authBody.parse(req.body);
   const { data, error } = await getSupabase().auth.signInWithPassword({ email, password });
   if (error) { res.status(401).json({ error: error.message }); return; }
-  res.json({ user: { id: data.user?.id, email: data.user?.email }, session: data.session });
+  res.json({ user: { id: data.user?.id, email: data.user?.email }, accessToken: data.session?.access_token });
 }));
 
 router.get("/auth/me", asyncHandler(async (req, res) => {
