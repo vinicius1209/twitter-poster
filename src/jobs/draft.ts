@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import {
   embedTexts,
   generateDraftsWithLlm,
+  generateThreadWithLlm,
   maxCosineSimilarity,
   type PostFormat,
 } from "../ai/llm.js";
@@ -66,10 +67,26 @@ export async function generateDraftJob(params: {
   const format = params.format ?? "short";
   const maxChars = POST_LIMITS[format];
 
-  const bodies = await generateDraftsWithLlm({
-    topicsSummary: summary, exampleSnippets, tone: effectiveTone,
-    count, format, maxChars, mentors, existingDrafts, systemPrompt,
-  });
+  let bodies: string[];
+
+  if (format === "thread") {
+    // Thread: gera com prompts encadeados para coerência narrativa
+    // Cada "variação" é uma thread completa (posts separados por \n---\n)
+    const allThreads: string[] = [];
+    for (let i = 0; i < count; i++) {
+      const threadPosts = await generateThreadWithLlm({
+        topicsSummary: summary, exampleSnippets, tone: effectiveTone,
+        threadLength: 4, systemPrompt,
+      });
+      allThreads.push(threadPosts.join("\n---\n"));
+    }
+    bodies = allThreads;
+  } else {
+    bodies = await generateDraftsWithLlm({
+      topicsSummary: summary, exampleSnippets, tone: effectiveTone,
+      count, format, maxChars, mentors, existingDrafts, systemPrompt,
+    });
+  }
 
   const drafts: GeneratedDraft[] = [];
   for (const body of bodies) {

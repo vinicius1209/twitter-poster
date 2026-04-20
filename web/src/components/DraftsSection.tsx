@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { Draft, Persona } from "@shared/types.js";
 import { PersonaSelector } from "./PersonaSelector.js";
+import { TweetPreview } from "./TweetPreview.js";
 
 export type PostFormat = "short" | "long" | "thread";
 
@@ -37,7 +38,9 @@ function DraftCard({
   onEdit: (body: string) => void;
 }) {
   const [editing, setEditing] = useState(false);
+  const [preview, setPreview] = useState(true);
   const [editText, setEditText] = useState(draft.body);
+  const isThread = draft.body.includes("\n---\n");
 
   return (
     <div className="item-card">
@@ -87,6 +90,10 @@ function DraftCard({
             </button>
           </div>
         </div>
+      ) : preview ? (
+        <div style={{ marginTop: "0.4rem" }}>
+          <TweetPreview body={draft.body} isThread={isThread} />
+        </div>
       ) : (
         <div className="item-card-body" style={{ cursor: "pointer" }} onClick={() => setEditing(true)} title="Clique para editar">
           {draft.body}
@@ -102,10 +109,13 @@ function DraftCard({
       {/* Ações */}
       {!editing && (
         <div style={{ display: "flex", gap: "0.4rem", marginTop: "0.5rem", justifyContent: "flex-end" }}>
+          <button type="button" className="small" onClick={() => setPreview(!preview)} title="Alternar preview">
+            {preview ? "Raw" : "Preview"}
+          </button>
           <button type="button" className="small danger" onClick={onDiscard} title="Descartar">
             Descartar
           </button>
-          <button type="button" className="small" onClick={() => setEditing(true)} title="Editar texto">
+          <button type="button" className="small" onClick={() => { setPreview(false); setEditing(true); }} title="Editar texto">
             Editar
           </button>
           <button type="button" className="small" onClick={onSchedule}>

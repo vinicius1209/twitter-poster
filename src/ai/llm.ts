@@ -331,7 +331,8 @@ Responda APENAS JSON array com ${count} strings. Cada string é um post completo
    * Para "long" e "thread", mantém o texto íntegro.
    */
   function fitToLimit(text: string): string {
-    const t = text.trim();
+    // Converte \n literais (que a LLM às vezes gera como texto) em quebras reais
+    const t = text.replace(/\\n/g, "\n").trim();
     if (format !== "short" || t.length <= maxChars) return t;
     return smartTruncate(t, maxChars);
   }
@@ -379,6 +380,68 @@ Responda APENAS JSON array com ${count} strings. Cada string é um post completo
     .replace(/\\n/g, "\n")
     .trim();
   return [fitToLimit(cleaned)];
+}
+
+/**
+ * Gera uma thread com prompts encadeados.
+ * Cada post é gerado com contexto dos anteriores para coerência narrativa.
+ */
+export async function generateThreadWithLlm(params: {
+  topicsSummary: string;
+  exampleSnippets: string[];
+  tone: string;
+  threadLength?: number;
+  systemPrompt?: string;
+}): Promise<string[]> {
+  const c = getClient();
+  if (!c) return [`Thread sobre: ${params.topicsSummary.slice(0, 200)}`];
+
+  const threadLength = params.threadLength ?? 4;
+  const posts: string[] = [];
+
+  for (let i = 0; i < threadLength; i++) {
+    const isFirst = i === 0;
+    const isLast = i === threadLength - 1;
+
+    let contextSection = "";
+    if (posts.length > 0) {
+      contextSection = `\nPosts anteriores da thread (mantenha coerência narrativa):\n${posts.map((p, idx) => `[${idx + 1}/${threadLength}] ${p}`).join("\n\n")}`;
+    }
+
+    const prompt = `Escreva o post ${i + 1} de ${threadLength} de uma thread para o X, em português brasileiro.
+Tom: ${params.tone}
+Máximo 280 caracteres.
+
+${isFirst ? "Este é o PRIMEIRO post — deve ser um gancho irresistível que faz parar de scrollar. Curto, impactante, provoca curiosidade." : ""}
+${isLast ? "Este é o ÚLTIMO post — deve ser o insight principal, a conclusão forte. Sem CTA genérica." : ""}
+${!isFirst && !isLast ? `Este é o post ${i + 1} de ${threadLength} — desenvolva o argumento, adicione dados ou exemplos.` : ""}
+${contextSection}
+
+Temas: ${params.topicsSummary.slice(0, 500)}
+
+Responda APENAS o texto do post, sem aspas, sem numeração.`;
+
+    const messages: { role: "system" | "user"; content: string }[] = [];
+    if (params.systemPrompt) messages.push({ role: "system", content: params.systemPrompt });
+    messages.push({ role: "user", content: prompt });
+
+    try {
+      const res = await loggedCall(`generateThread_${i + 1}/${threadLength}`, prompt.slice(0, 100), () =>
+        c.chat.completions.create({
+          model: openaiModel,
+          messages,
+          temperature: 0.85,
+          max_tokens: 200,
+        })
+      );
+      const text = res.choices[0]?.message?.content?.trim() ?? "";
+      posts.push(smartTruncate(text, 280));
+    } catch {
+      posts.push(`[Post ${i + 1}/${threadLength} - erro na geração]`);
+    }
+  }
+
+  return posts;
 }
 
 export async function generateDraftWithLlm(params: {
