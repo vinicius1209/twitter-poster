@@ -13,25 +13,9 @@ import { processTaskResult } from "../jobs/taskResultProcessor.js";
 
 const router = Router();
 
-// ── Rotas públicas (frontend faz polling de tasks) ──
+// ── Rotas específicas ANTES das rotas com :id ──
 
-/** Status de uma task específica — frontend usa para polling */
-router.get("/agent/tasks/:id", asyncHandler(async (req, res) => {
-  const task = await getTask(req.params.id as string);
-  if (!task) { res.status(404).json({ error: "Task não encontrada" }); return; }
-  res.json(task);
-}));
-
-/** Dashboard: lista tasks */
-router.get("/agent/tasks", asyncHandler(async (req, res) => {
-  const status = req.query.status as string | undefined;
-  const tasks = await listTasks(status as any, 50);
-  res.json(tasks);
-}));
-
-// ── Rotas protegidas (só agent com token) ──
-
-/** Agent polls para a próxima task pendente */
+/** Agent polls para a próxima task pendente (protegido) */
 router.get("/agent/tasks/next", requireAgentAuth, asyncHandler(async (_req, res) => {
   await resetStaleTasks(5);
   const task = await claimNextTask();
@@ -39,7 +23,23 @@ router.get("/agent/tasks/next", requireAgentAuth, asyncHandler(async (_req, res)
   res.json(task);
 }));
 
-/** Agent reporta resultado de uma task */
+/** Dashboard: lista tasks (público) */
+router.get("/agent/tasks", asyncHandler(async (req, res) => {
+  const status = req.query.status as string | undefined;
+  const tasks = await listTasks(status as any, 50);
+  res.json(tasks);
+}));
+
+// ── Rotas com :id DEPOIS ──
+
+/** Status de uma task específica (público — frontend polling) */
+router.get("/agent/tasks/:id", asyncHandler(async (req, res) => {
+  const task = await getTask(req.params.id as string);
+  if (!task) { res.status(404).json({ error: "Task não encontrada" }); return; }
+  res.json(task);
+}));
+
+/** Agent reporta resultado (protegido) */
 router.post("/agent/tasks/:id/result", requireAgentAuth, asyncHandler(async (req, res) => {
   const taskId = req.params.id as string;
   const { ok, result, error } = req.body as { ok: boolean; result?: Record<string, unknown>; error?: string };
