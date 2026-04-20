@@ -4,6 +4,7 @@ import { asyncHandler, httpError } from "../middleware/errorHandler.js";
 import { sanitizeHandle } from "../util/validate.js";
 import { createTask } from "../db/repositories/agentTasks.repo.js";
 import { getWatchlistHandles } from "../db/repositories/authors.repo.js";
+import { xUserHandle } from "../config.js";
 
 const router = Router();
 
@@ -13,8 +14,9 @@ const syncBody = z.object({
 });
 
 router.post("/sync/likes", asyncHandler(async (req, res) => {
+  if (!xUserHandle) throw httpError(400, "X_USER_HANDLE não configurado.");
   const opts = syncBody.parse(req.body ?? {});
-  const task = await createTask("collect_likes", { maxScrolls: opts.maxScrolls, maxTweets: opts.maxTweets });
+  const task = await createTask("collect_likes", { userHandle: xUserHandle, maxScrolls: opts.maxScrolls, maxTweets: opts.maxTweets });
   res.json({ taskId: task.id, status: task.status, message: "Task de coleta criada. Aguardando agent..." });
 }));
 
