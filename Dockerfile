@@ -8,6 +8,7 @@ RUN npm ci
 COPY src/ai/ src/ai/
 COPY src/db/ src/db/
 COPY src/jobs/ src/jobs/
+COPY src/lib/ src/lib/
 COPY src/middleware/ src/middleware/
 COPY src/routes/ src/routes/
 COPY src/shared/ src/shared/
