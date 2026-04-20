@@ -1,15 +1,19 @@
-import { collectFromProfile } from "../browser/collect.js";
 import { getWatchlistHandles } from "../db/repositories/authors.repo.js";
+import { createTask } from "../db/repositories/agentTasks.repo.js";
 
+/**
+ * Cria tasks de coleta para cada perfil da watchlist.
+ * Não chama browser diretamente — delega ao agent via task queue.
+ */
 export async function syncWatchlistAccounts(): Promise<{
-  results: { handle: string; inserted: number; message: string }[];
+  results: { handle: string; taskId: string }[];
 }> {
   const rows = await getWatchlistHandles();
-  const results: { handle: string; inserted: number; message: string }[] = [];
+  const results = [];
 
   for (const r of rows) {
-    const res = await collectFromProfile(r.handle, { maxScrolls: 6, maxTweets: 40 });
-    results.push({ handle: r.handle, inserted: res.inserted, message: res.message });
+    const task = await createTask("collect_profile", { handle: r.handle, maxScrolls: 6, maxTweets: 40 });
+    results.push({ handle: r.handle, taskId: task.id });
   }
 
   return { results };
