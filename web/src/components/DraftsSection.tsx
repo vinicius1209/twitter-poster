@@ -40,7 +40,14 @@ function DraftCard({
   const [editing, setEditing] = useState(false);
   const [preview, setPreview] = useState(true);
   const [editText, setEditText] = useState(draft.body);
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
   const isThread = draft.body.includes("\n---\n");
+
+  async function handleAction(name: string, fn: () => void | Promise<void>) {
+    if (actionLoading) return; // prevent double submit
+    setActionLoading(name);
+    try { await fn(); } finally { setActionLoading(null); }
+  }
 
   return (
     <div className="item-card">
@@ -71,12 +78,13 @@ function DraftCard({
             <button
               type="button"
               className="primary small"
-              onClick={() => {
+              disabled={!!actionLoading}
+              onClick={() => handleAction("save", async () => {
                 onEdit(editText);
                 setEditing(false);
-              }}
+              })}
             >
-              Salvar
+              {actionLoading === "save" ? <><span className="spinner" /> Salvando…</> : "Salvar"}
             </button>
             <button
               type="button"
@@ -109,17 +117,17 @@ function DraftCard({
       {/* Ações */}
       {!editing && (
         <div style={{ display: "flex", gap: "0.4rem", marginTop: "0.5rem", justifyContent: "flex-end" }}>
-          <button type="button" className="small" onClick={() => setPreview(!preview)} title="Alternar preview">
+          <button type="button" className="small" onClick={() => setPreview(!preview)} disabled={!!actionLoading}>
             {preview ? "Raw" : "Preview"}
           </button>
-          <button type="button" className="small danger" onClick={onDiscard} title="Descartar">
-            Descartar
+          <button type="button" className="small danger" disabled={!!actionLoading} onClick={() => handleAction("discard", onDiscard)}>
+            {actionLoading === "discard" ? <><span className="spinner" /> Descartando…</> : "Descartar"}
           </button>
-          <button type="button" className="small" onClick={() => { setPreview(false); setEditing(true); }} title="Editar texto">
+          <button type="button" className="small" disabled={!!actionLoading} onClick={() => { setPreview(false); setEditing(true); }}>
             Editar
           </button>
-          <button type="button" className="small" onClick={onSchedule}>
-            Agendar →
+          <button type="button" className="small" disabled={!!actionLoading} onClick={() => handleAction("schedule", onSchedule)}>
+            {actionLoading === "schedule" ? <><span className="spinner" /> Agendando…</> : "Agendar →"}
           </button>
         </div>
       )}
