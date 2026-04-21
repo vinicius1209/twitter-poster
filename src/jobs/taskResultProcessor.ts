@@ -3,6 +3,7 @@ import type { AgentTask, ExtractedTweet } from "../shared/types.js";
 import { insertEvents } from "../db/repositories/events.repo.js";
 import { markScheduledPosted, markScheduledFailed, updateScheduledTweetUrl } from "../db/repositories/scheduled.repo.js";
 import { updateDraftStatus } from "../db/repositories/drafts.repo.js";
+import { learnMentorStyle } from "./learnMentorStyle.js";
 import { insertMetric } from "../db/repositories/metrics.repo.js";
 
 /**
@@ -24,6 +25,10 @@ export async function processTaskResult(task: AgentTask): Promise<void> {
       const tweets = (result.tweets ?? []) as ExtractedTweet[];
       const handle = (task.payload.handle as string) ?? "unknown";
       await insertEvents(`profile:${handle}`, tweets, "view", task.user_id ?? undefined);
+      // Aprender estilo do mentor automaticamente após coleta
+      if (handle !== "unknown") {
+        void learnMentorStyle(handle).catch(() => {}); // fire and forget
+      }
       break;
     }
 

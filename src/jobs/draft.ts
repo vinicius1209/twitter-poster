@@ -12,6 +12,7 @@ import {
   getTopAuthors,
   getEventsByAuthor,
 } from "../db/repositories/events.repo.js";
+import { getMentorStyle } from "../db/repositories/mentorStyles.repo.js";
 import { insertDraft, getRecentDraftBodies } from "../db/repositories/drafts.repo.js";
 import { getPersona } from "../db/repositories/personas.repo.js";
 import { getLatestTopicRun } from "../db/repositories/topics.repo.js";
@@ -56,7 +57,18 @@ export async function generateDraftJob(params: {
   const mentors = [];
   for (const a of topAuthors) {
     const tweets = await getEventsByAuthor(a.author_handle, since, 3);
-    mentors.push({ handle: a.author_handle, score: a.score, sampleTweets: tweets.map(e => e.text_content) });
+    const style = await getMentorStyle(a.author_handle);
+    mentors.push({
+      handle: a.author_handle,
+      score: a.score,
+      sampleTweets: tweets.map(e => e.text_content),
+      // Estilo aprendido — se disponível, enriquece o prompt
+      learnedStyle: style ? {
+        tone: style.tone_description,
+        patterns: style.writing_patterns,
+        phrases: style.sample_phrases,
+      } : undefined,
+    });
   }
 
   const existingDrafts = await getRecentDraftBodies(10);

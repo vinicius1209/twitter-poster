@@ -194,7 +194,12 @@ export type DraftGenerationParams = {
   count: number;
   format: PostFormat;
   maxChars: number;
-  mentors: { handle: string; score: number; sampleTweets: string[] }[];
+  mentors: {
+    handle: string;
+    score: number;
+    sampleTweets: string[];
+    learnedStyle?: { tone: string | null; patterns: string | null; phrases: string | null };
+  }[];
   existingDrafts: string[];
   systemPrompt?: string;
 };
@@ -218,17 +223,23 @@ export async function generateDraftsWithLlm(params: DraftGenerationParams): Prom
     );
   }
 
-  // Monta seção de mentores
+  // Monta seção de mentores — com estilo aprendido quando disponível
   let mentorSection = "";
   if (mentors.length > 0) {
     const mentorLines = mentors.slice(0, 5).map(m => {
       const samples = m.sampleTweets.slice(0, 3).join("\n  ");
-      return `@${m.handle} (engajamento: ${m.score.toFixed(0)}):\n  ${samples}`;
+      let line = `@${m.handle} (engajamento: ${m.score.toFixed(0)}):\n  ${samples}`;
+      if (m.learnedStyle) {
+        if (m.learnedStyle.tone) line += `\n  Tom: ${m.learnedStyle.tone}`;
+        if (m.learnedStyle.patterns) line += `\n  Padrões: ${m.learnedStyle.patterns}`;
+        if (m.learnedStyle.phrases) line += `\n  Frases típicas: ${m.learnedStyle.phrases}`;
+      }
+      return line;
     }).join("\n\n");
-    mentorSection = `\nSeus mentores/referências (autores que você mais curte):
+    mentorSection = `\nSeus mentores/referências — o app APRENDEU o estilo deles:
 ${mentorLines}
 
-Capture a essência e os temas desses autores, mas com sua própria voz.`;
+Absorva o tom e os padrões de escrita desses autores, mas com sua própria voz. NÃO copie frases.`;
   }
 
   let avoidSection = "";
@@ -417,12 +428,18 @@ export async function generateThreadWithLlm(params: {
 
     const prompt = `Escreva o post ${i + 1} de ${threadLength} de uma thread para o X, em português brasileiro.
 Tom: ${params.tone}
-Máximo 280 caracteres. O post DEVE ser completo — nunca cortado no meio.
+MÁXIMO 250 caracteres (deixe margem — NUNCA ultrapasse 280). O post DEVE ser completo — nunca cortado no meio de uma frase.
 
 ${roleMap[role]}
 
-PROIBIDO: "Fique ligado", "Vamos explorar", "Comente aqui", "E você?", "Compartilhe", call to action genérica.
-Escreva como pessoa real, não como AI motivacional.
+PROIBIDO:
+- "Fique ligado", "Vamos explorar/desvendar", "Comente aqui", "E você?", "Compartilhe"
+- Ponto-e-vírgula (;) — ninguém usa no X. Use ponto final ou vírgula.
+- Reticências (...) no final — parece cortado
+- "Você já parou para pensar" — clichê de AI
+- Frases longas com múltiplas orações subordinadas — quebre em frases curtas
+
+Escreva como uma pessoa real que posta no X — direto, curto, opinionado.
 ${contextSection}
 
 Temas: ${params.topicsSummary.slice(0, 500)}
