@@ -1,0 +1,232 @@
+/* ── Studio (Creation) ────────────────────── */
+
+.studio-layout {
+  display: flex;
+  gap: 1.25rem;
+  align-items: flex-start;
+}
+
+.studio-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.studio-sidebar {
+  width: 280px;
+  flex-shrink: 0;
+  position: sticky;
+  top: 1rem;
+}
+
+/* Kanban Board */
+.kanban {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: var(--kanban-gap);
+  min-height: 300px;
+}
+
+.kanban-column {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  display: flex;
+  flex-direction: column;
+  min-height: 200px;
+}
+
+.kanban-column-header {
+  padding: 0.85rem 1rem;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.kanban-column-title {
+  font-size: 0.82rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-dim);
+}
+
+.kanban-column-count {
+  font-size: 0.72rem;
+  font-weight: 700;
+  background: var(--surface-raised);
+  color: var(--text-dim);
+  padding: 0.1rem 0.45rem;
+  border-radius: 10px;
+  min-width: 20px;
+  text-align: center;
+}
+
+.kanban-column-body {
+  padding: 0.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  flex: 1;
+  overflow-y: auto;
+  max-height: calc(100vh - 250px);
+}
+
+/* Tweet Card (within kanban) */
+.tweet-card {
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.tweet-card:hover {
+  border-color: var(--text-dim);
+}
+
+.tweet-card-header {
+  padding: 0.5rem 0.75rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid var(--border);
+}
+
+.tweet-card-preview {
+  padding: 0;
+}
+
+.tweet-card-actions {
+  padding: 0.5rem 0.75rem;
+  display: flex;
+  gap: 0.35rem;
+  justify-content: flex-end;
+  border-top: 1px solid var(--border);
+}
+
+/* Quick Schedule Popover */
+.schedule-popover {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 0.35rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 0.85rem;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  z-index: 50;
+  min-width: 260px;
+  animation: slideDown 0.15s ease;
+}
+
+.schedule-popover label {
+  margin-bottom: 0.2rem;
+}
+
+.schedule-popover input {
+  margin-bottom: 0.5rem;
+  font-size: 0.82rem;
+  padding: 0.4rem 0.6rem;
+}
+
+/* Persona Toolbar */
+.persona-toolbar {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.persona-toolbar h3 {
+  font-size: 0.85rem;
+  font-weight: 600;
+  margin-bottom: 0.25rem;
+}
+
+.persona-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.4rem;
+}
+
+.persona-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.2rem;
+  padding: 0.5rem 0.4rem;
+  min-width: 0;
+  border-radius: var(--radius-sm);
+  border: 1.5px solid var(--border);
+  background: var(--surface-raised);
+  cursor: pointer;
+  transition: all 0.15s;
+  color: var(--text);
+  font-weight: 400;
+  font-size: 0.78rem;
+}
+
+.persona-btn:hover {
+  border-color: var(--text-dim);
+}
+
+.persona-btn.active {
+  border-color: var(--accent);
+  background: var(--accent-glow);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.persona-btn-icon {
+  font-size: 1.2rem;
+}
+
+/* Generate bar */
+.generate-bar {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.generate-bar .format-options {
+  display: flex;
+  gap: 0.3rem;
+}
+
+.format-btn {
+  flex: 1;
+  padding: 0.35rem 0.3rem;
+  border-radius: var(--radius-sm);
+  border: 1.5px solid var(--border);
+  background: var(--surface-raised);
+  color: var(--text-dim);
+  cursor: pointer;
+  font-size: 0.75rem;
+  font-weight: 400;
+  text-align: center;
+}
+
+.format-btn.active {
+  border-color: var(--accent);
+  background: var(--accent-glow);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+@media (max-width: 900px) {
+  .studio-layout {
+    flex-direction: column-reverse;
+  }
+  .studio-sidebar {
+    width: 100%;
+    position: static;
+  }
+  .kanban {
+    grid-template-columns: 1fr;
+  }
+}

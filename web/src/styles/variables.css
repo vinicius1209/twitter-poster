@@ -1,0 +1,33 @@
+@import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Outfit:wght@300;400;500;600;700&display=swap');
+
+:root {
+  --bg: #08090c;
+  --surface: #111318;
+  --surface-raised: #181b22;
+  --border: #242938;
+  --border-active: #38bdf8;
+  --text: #e4e8f1;
+  --text-dim: #6b7590;
+  --accent: #38bdf8;
+  --accent-glow: rgba(56, 189, 248, 0.12);
+  --accent-subtle: #164e6e;
+  --danger: #f87171;
+  --ok: #4ade80;
+  --warn: #fbbf24;
+  --ok-bg: rgba(74, 222, 128, 0.08);
+  --warn-bg: rgba(251, 191, 36, 0.08);
+  --danger-bg: rgba(248, 113, 113, 0.08);
+  --radius: 14px;
+  --radius-sm: 8px;
+
+  /* New layout tokens */
+  --sidebar-width: 240px;
+  --sidebar-collapsed: 56px;
+  --kanban-gap: 0.75rem;
+  --page-padding: 2rem 2.5rem;
+
+  font-family: 'Outfit', system-ui, sans-serif;
+  color: var(--text);
+  background: var(--bg);
+  line-height: 1.55;
+}
