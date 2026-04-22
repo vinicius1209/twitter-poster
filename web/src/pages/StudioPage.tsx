@@ -1,7 +1,17 @@
 import { useState } from "react";
+import { Loader2, Trash2, PenLine, CalendarClock, ChevronDown, Sparkles, Ghost } from "lucide-react";
 import { useAppStore } from "../store.js";
 import { api } from "../api.js";
 import { TweetPreview } from "../components/TweetPreview.js";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Separator } from "@/components/ui/separator";
+import { cn } from "@/lib/utils";
 import type { Draft, Persona } from "@shared/types.js";
 
 type PostFormat = "short" | "long" | "thread";
@@ -23,13 +33,12 @@ function TweetCard({
 }: {
   draft: Draft;
   persona: Persona | undefined;
-  onSchedule: (body: string) => void;
+  onSchedule: (runAt: string) => void;
   onDiscard: () => void;
   onEdit: (body: string) => void;
 }) {
   const [editing, setEditing] = useState(false);
   const [editText, setEditText] = useState(draft.body);
-  const [showSchedule, setShowSchedule] = useState(false);
   const [scheduleAt, setScheduleAt] = useState(() => {
     const t = new Date();
     t.setMinutes(t.getMinutes() + 5);
@@ -44,110 +53,138 @@ function TweetCard({
     try { await fn(); } finally { setActionLoading(null); }
   }
 
+  const statusMap: Record<string, { label: string; variant: "warning" | "success" | "destructive" | "default" }> = {
+    pending_approval: { label: "Pendente", variant: "warning" },
+    draft: { label: "Rascunho", variant: "default" },
+    scheduled: { label: "Agendado", variant: "primary" as "default" },
+    posted: { label: "Publicado", variant: "success" },
+    failed: { label: "Falhou", variant: "destructive" },
+    discarded: { label: "Descartado", variant: "default" },
+  };
+
+  const status = statusMap[draft.status] ?? { label: draft.status, variant: "default" as const };
+
   return (
-    <div className="tweet-card">
-      <div className="tweet-card-header">
-        <div style={{ display: "flex", gap: "0.4rem", alignItems: "center" }}>
-          <span className={`badge ${draft.status === "posted" ? "ok" : draft.status === "failed" ? "err" : "warn"}`}>
-            {{ pending_approval: "Pendente", draft: "Rascunho", scheduled: "Agendado", posted: "Publicado", failed: "Falhou", discarded: "Descartado" }[draft.status] ?? draft.status}
-          </span>
+    <Card className="overflow-hidden transition-all duration-150 hover:border-muted-foreground/30 hover:shadow-lg hover:shadow-primary/5">
+      {/* Header */}
+      <div className="flex items-center justify-between px-3 py-2 border-b border-border">
+        <div className="flex items-center gap-2">
+          <Badge variant={status.variant}>{status.label}</Badge>
           {persona && (
-            <span style={{ fontSize: "0.72rem", color: "var(--text-dim)" }}>
+            <span className="text-[0.68rem] text-muted-foreground">
               {persona.icon} {persona.name}
             </span>
           )}
         </div>
-        <span style={{ fontSize: "0.7rem", color: "var(--text-dim)", fontFamily: "'Space Mono', monospace" }}>
+        <span className="text-[0.65rem] font-mono text-muted-foreground">
           {editText.length} chars
         </span>
       </div>
 
+      {/* Body */}
       {editing ? (
-        <div style={{ padding: "0.5rem 0.75rem" }}>
-          <textarea
+        <div className="p-3">
+          <Textarea
             value={editText}
             onChange={(e) => setEditText(e.target.value)}
-            style={{ width: "100%", minHeight: 80, fontSize: "0.85rem" }}
+            className="min-h-[80px] text-sm"
           />
-          <div className="row" style={{ marginTop: "0.4rem" }}>
-            <button
-              type="button"
-              className="primary small"
+          <div className="flex gap-2 mt-2">
+            <Button
+              size="sm"
+              variant="primary"
               disabled={!!actionLoading}
-              onClick={() => handleAction("save", () => {
-                onEdit(editText);
-                setEditing(false);
-              })}
+              onClick={() => handleAction("save", () => { onEdit(editText); setEditing(false); })}
             >
-              {actionLoading === "save" ? <><span className="spinner" /> Salvando...</> : "Salvar"}
-            </button>
-            <button type="button" className="small" onClick={() => { setEditText(draft.body); setEditing(false); }}>
+              {actionLoading === "save" ? <Loader2 className="size-3 animate-spin" /> : null}
+              Salvar
+            </Button>
+            <Button size="sm" variant="ghost" onClick={() => { setEditText(draft.body); setEditing(false); }}>
               Cancelar
-            </button>
+            </Button>
           </div>
         </div>
       ) : (
-        <div className="tweet-card-preview">
-          <TweetPreview body={draft.body} isThread={isThread} />
-        </div>
+        <TweetPreview body={draft.body} isThread={isThread} />
       )}
 
-      {draft.similarity_note && (
-        <div style={{ padding: "0 0.75rem 0.25rem", fontSize: "0.75rem", color: "var(--warn)" }}>
-          {draft.similarity_note}
-        </div>
-      )}
-
+      {/* Actions — always visible */}
       {!editing && (
-        <div className="tweet-card-actions" style={{ position: "relative" }}>
-          <button type="button" className="small danger" disabled={!!actionLoading} onClick={() => handleAction("discard", onDiscard)}>
-            {actionLoading === "discard" ? <><span className="spinner" /></> : "Descartar"}
-          </button>
-          <button type="button" className="small" disabled={!!actionLoading} onClick={() => setEditing(true)}>
-            Editar
-          </button>
-          <button
-            type="button"
-            className="small primary"
+        <div className="flex items-center gap-1.5 px-3 py-2 border-t border-border">
+          <Button
+            size="sm"
+            variant="destructive"
             disabled={!!actionLoading}
-            onClick={() => setShowSchedule(!showSchedule)}
+            onClick={() => handleAction("discard", onDiscard)}
+            className="h-7"
           >
-            Agendar
-          </button>
+            {actionLoading === "discard" ? <Loader2 className="size-3 animate-spin" /> : <Trash2 className="size-3" />}
+            <span className="hidden sm:inline">Descartar</span>
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={!!actionLoading}
+            onClick={() => setEditing(true)}
+            className="h-7"
+          >
+            <PenLine className="size-3" />
+            <span className="hidden sm:inline">Editar</span>
+          </Button>
 
-          {showSchedule && (
-            <div className="schedule-popover">
-              <label>Data e hora</label>
-              <input
-                type="datetime-local"
-                value={scheduleAt}
-                onChange={(e) => setScheduleAt(e.target.value)}
-              />
-              <button
-                type="button"
-                className="primary small"
-                disabled={!!actionLoading || !scheduleAt}
-                onClick={() => handleAction("schedule", () => {
-                  onSchedule(new Date(scheduleAt).toISOString());
-                  setShowSchedule(false);
-                })}
-                style={{ width: "100%" }}
-              >
-                {actionLoading === "schedule" ? <><span className="spinner" /> Agendando...</> : "Confirmar"}
-              </button>
-            </div>
-          )}
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button size="sm" variant="primary" disabled={!!actionLoading} className="h-7 ml-auto">
+                <CalendarClock className="size-3" />
+                Agendar
+                <ChevronDown className="size-3" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-64" align="end">
+              <div className="space-y-3">
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1.5 block">
+                    Data e hora
+                  </label>
+                  <Input
+                    type="datetime-local"
+                    value={scheduleAt}
+                    onChange={(e) => setScheduleAt(e.target.value)}
+                    className="h-8 text-sm"
+                  />
+                </div>
+                <Button
+                  size="sm"
+                  variant="primary"
+                  className="w-full"
+                  disabled={!!actionLoading || !scheduleAt}
+                  onClick={() => handleAction("schedule", () => {
+                    onSchedule(new Date(scheduleAt).toISOString());
+                  })}
+                >
+                  {actionLoading === "schedule" ? <Loader2 className="size-3 animate-spin" /> : null}
+                  Confirmar agendamento
+                </Button>
+              </div>
+            </PopoverContent>
+          </Popover>
         </div>
       )}
 
-      <div style={{ padding: "0 0.75rem 0.5rem", fontSize: "0.7rem", color: "var(--text-dim)", fontFamily: "'Space Mono', monospace" }}>
-        {new Date(draft.created_at).toLocaleString("pt-BR")}
+      {/* Meta */}
+      <div className="px-3 pb-2">
+        {draft.similarity_note && (
+          <p className="text-[0.7rem] text-warning mb-1">{draft.similarity_note}</p>
+        )}
+        <p className="text-[0.65rem] font-mono text-muted-foreground/60">
+          {new Date(draft.created_at).toLocaleString("pt-BR")}
+        </p>
       </div>
-    </div>
+    </Card>
   );
 }
 
-/* ── ScheduledCard (for "Na Fila" / "Publicados" columns) ──── */
+/* ── ScheduledCard ────────────────────────── */
 
 function ScheduledCard({
   post,
@@ -158,29 +195,27 @@ function ScheduledCard({
 }) {
   const isThread = post.body.includes("\n---\n");
   return (
-    <div className="tweet-card">
-      <div className="tweet-card-header">
-        <span className={`badge ${post.status === "posted" ? "ok" : post.status === "failed" ? "err" : "warn"}`}>
+    <Card className="overflow-hidden">
+      <div className="flex items-center justify-between px-3 py-2 border-b border-border">
+        <Badge variant={post.status === "posted" ? "success" : post.status === "failed" ? "destructive" : "warning"}>
           {post.status === "posted" ? "Publicado" : post.status === "failed" ? "Falhou" : "Agendado"}
-        </span>
-        <span style={{ fontSize: "0.7rem", color: "var(--text-dim)", fontFamily: "'Space Mono', monospace" }}>
+        </Badge>
+        <span className="text-[0.65rem] font-mono text-muted-foreground">
           {new Date(post.run_at).toLocaleString("pt-BR")}
         </span>
       </div>
-      <div className="tweet-card-preview">
-        <TweetPreview body={post.body} isThread={isThread} />
-      </div>
+      <TweetPreview body={post.body} isThread={isThread} />
       {post.last_error && (
-        <div style={{ padding: "0 0.75rem 0.25rem", fontSize: "0.72rem", color: "var(--danger)" }}>
-          {post.last_error}
-        </div>
+        <p className="px-3 py-1 text-[0.7rem] text-destructive">{post.last_error}</p>
       )}
       {post.status === "scheduled" && (
-        <div className="tweet-card-actions">
-          <button type="button" className="small danger" onClick={onCancel}>Cancelar</button>
+        <div className="px-3 py-2 border-t border-border">
+          <Button size="sm" variant="destructive" onClick={onCancel} className="h-7">
+            Cancelar
+          </Button>
         </div>
       )}
-    </div>
+    </Card>
   );
 }
 
@@ -189,22 +224,33 @@ function ScheduledCard({
 function KanbanColumn({
   title,
   count,
+  dotColor,
   children,
 }: {
   title: string;
   count: number;
+  dotColor: string;
   children: React.ReactNode;
 }) {
   return (
-    <div className="kanban-column">
-      <div className="kanban-column-header">
-        <span className="kanban-column-title">{title}</span>
-        <span className="kanban-column-count">{count}</span>
-      </div>
-      <div className="kanban-column-body">
-        {children}
-      </div>
-    </div>
+    <Card className="flex flex-col min-h-[300px]">
+      <CardHeader className="pb-0 pt-3 px-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className={cn("size-2 rounded-full", dotColor)} />
+            <CardTitle className="text-xs uppercase tracking-wider text-muted-foreground">{title}</CardTitle>
+          </div>
+          <span className="text-[0.68rem] font-mono font-bold text-muted-foreground bg-secondary rounded-full px-2 py-0.5">
+            {count}
+          </span>
+        </div>
+      </CardHeader>
+      <ScrollArea className="flex-1 p-2">
+        <div className="flex flex-col gap-2 min-h-[200px]">
+          {children}
+        </div>
+      </ScrollArea>
+    </Card>
   );
 }
 
@@ -231,23 +277,18 @@ export function StudioPage() {
 
   const selectedPersona = personas.find((p) => p.id === selectedPersonaId);
 
-  // Split drafts by status
   const pendingDrafts = drafts.filter((d) => d.status === "pending_approval" || d.status === "draft");
   const scheduledPosts = scheduled.filter((s) => s.status === "scheduled");
   const postedPosts = scheduled.filter((s) => s.status === "posted" || s.status === "failed");
 
-  // Ghostwriter state
   const [ghostText, setGhostText] = useState("");
   const [showGhostwriter, setShowGhostwriter] = useState(false);
 
   async function handleGenerate() {
     await run("draft", async () => {
       const r = await api.generateDrafts({
-        windowHours: windowH,
-        tone,
-        count: draftCount,
-        personaId: selectedPersonaId ?? undefined,
-        format: draftFormat,
+        windowHours: windowH, tone, count: draftCount,
+        personaId: selectedPersonaId ?? undefined, format: draftFormat,
       });
       setMentorsUsed(r.mentorsUsed);
       setMsg(`${r.drafts.length} variacoes geradas. Mentores: ${r.mentorsUsed.map((m) => "@" + m).join(", ") || "nenhum"}`);
@@ -262,46 +303,35 @@ export function StudioPage() {
   }
 
   async function handleScheduleDraft(draftId: string, body: string, runAt: string) {
-    await run("schedule", async () => {
-      await api.schedule(body, runAt, draftId);
-      setMsg("Post agendado.");
-    });
+    await run("schedule", async () => { await api.schedule(body, runAt, draftId); setMsg("Post agendado."); });
   }
 
   async function handleDiscard(id: string) {
-    await run("discard", async () => {
-      await api.discardDraft(id);
-    });
+    await run("discard", async () => { await api.discardDraft(id); });
   }
 
   async function handleEdit(id: string, body: string) {
-    await run("edit", async () => {
-      await api.patchDraft(id, { body });
-      setMsg("Rascunho editado.");
-    });
+    await run("edit", async () => { await api.patchDraft(id, { body }); setMsg("Rascunho editado."); });
   }
 
   async function handleCancel(id: string) {
-    await run("cancel", async () => {
-      await api.cancelScheduled(id);
-      setMsg("Agendamento cancelado.");
-    });
+    await run("cancel", async () => { await api.cancelScheduled(id); setMsg("Agendamento cancelado."); });
   }
 
   return (
     <div>
-      <div className="page-header">
-        <h1>Studio</h1>
-        <p>Crie, revise e publique seus posts</p>
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold tracking-tight">Studio</h1>
+        <p className="text-sm text-muted-foreground">Crie, revise e publique seus posts</p>
       </div>
 
-      <div className="studio-layout">
-        <div className="studio-main">
-          {/* Kanban Board */}
-          <div className="kanban">
-            <KanbanColumn title="Ideias" count={pendingDrafts.length}>
+      <div className="flex gap-4 items-start max-[900px]:flex-col-reverse">
+        {/* Kanban */}
+        <div className="flex-1 min-w-0">
+          <div className="grid grid-cols-3 gap-3 max-[900px]:grid-cols-1">
+            <KanbanColumn title="Ideias" count={pendingDrafts.length} dotColor="bg-warning">
               {pendingDrafts.length === 0 ? (
-                <div className="empty-state" style={{ margin: "0.5rem", fontSize: "0.82rem" }}>
+                <div className="flex items-center justify-center h-full text-sm text-muted-foreground/50 p-4 text-center">
                   Gere rascunhos no painel lateral
                 </div>
               ) : (
@@ -318,9 +348,9 @@ export function StudioPage() {
               )}
             </KanbanColumn>
 
-            <KanbanColumn title="Na Fila" count={scheduledPosts.length}>
+            <KanbanColumn title="Na Fila" count={scheduledPosts.length} dotColor="bg-primary">
               {scheduledPosts.length === 0 ? (
-                <div className="empty-state" style={{ margin: "0.5rem", fontSize: "0.82rem" }}>
+                <div className="flex items-center justify-center h-full text-sm text-muted-foreground/50 p-4 text-center">
                   Aprove rascunhos para agendar
                 </div>
               ) : (
@@ -330,9 +360,9 @@ export function StudioPage() {
               )}
             </KanbanColumn>
 
-            <KanbanColumn title="Publicados" count={postedPosts.length}>
+            <KanbanColumn title="Publicados" count={postedPosts.length} dotColor="bg-success">
               {postedPosts.length === 0 ? (
-                <div className="empty-state" style={{ margin: "0.5rem", fontSize: "0.82rem" }}>
+                <div className="flex items-center justify-center h-full text-sm text-muted-foreground/50 p-4 text-center">
                   Posts publicados aparecem aqui
                 </div>
               ) : (
@@ -344,123 +374,147 @@ export function StudioPage() {
           </div>
         </div>
 
-        {/* Right sidebar: Persona + Generate */}
-        <div className="studio-sidebar">
-          <div className="persona-toolbar">
-            {/* Personas */}
-            {personas.length > 0 && (
+        {/* Persona Toolbar */}
+        <div className="w-[280px] shrink-0 sticky top-4 max-[900px]:w-full max-[900px]:static">
+          <Card>
+            <CardContent className="p-4 space-y-4">
+              {/* Personas */}
+              {personas.length > 0 && (
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2 block">
+                    Persona
+                  </label>
+                  <div className="grid grid-cols-2 gap-1.5">
+                    {personas.map((p) => (
+                      <button
+                        key={p.id}
+                        type="button"
+                        onClick={() => setSelectedPersonaId(selectedPersonaId === p.id ? null : p.id)}
+                        className={cn(
+                          "flex flex-col items-center gap-1 rounded-lg border p-2.5 text-xs font-medium transition-all duration-150 cursor-pointer",
+                          selectedPersonaId === p.id
+                            ? "border-primary bg-primary/10 text-primary"
+                            : "border-border bg-secondary text-muted-foreground hover:border-muted-foreground/30 hover:text-foreground"
+                        )}
+                      >
+                        <span className="text-lg">{p.icon}</span>
+                        <span>{p.name}</span>
+                      </button>
+                    ))}
+                  </div>
+                  {selectedPersona && (
+                    <p className="text-[0.7rem] text-muted-foreground mt-2">{selectedPersona.description}</p>
+                  )}
+                </div>
+              )}
+
+              <Separator />
+
+              {/* Tone */}
               <div>
-                <h3>Persona</h3>
-                <div className="persona-grid">
-                  {personas.map((p) => (
+                <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1.5 block">
+                  Tom {selectedPersona ? `(${selectedPersona.name})` : ""}
+                </label>
+                <Input
+                  value={selectedPersona ? selectedPersona.tone : tone}
+                  onChange={(e) => setTone(e.target.value)}
+                  disabled={!!selectedPersona}
+                  className={cn("h-8 text-sm", selectedPersona && "opacity-60")}
+                />
+              </div>
+
+              {/* Format */}
+              <div>
+                <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1.5 block">
+                  Formato
+                </label>
+                <div className="flex gap-1.5">
+                  {FORMAT_OPTIONS.map((opt) => (
                     <button
-                      key={p.id}
+                      key={opt.value}
                       type="button"
-                      className={`persona-btn ${selectedPersonaId === p.id ? "active" : ""}`}
-                      onClick={() => setSelectedPersonaId(selectedPersonaId === p.id ? null : p.id)}
+                      onClick={() => setDraftFormat(opt.value)}
+                      className={cn(
+                        "flex-1 rounded-md border py-1.5 text-center text-xs font-medium transition-all cursor-pointer",
+                        draftFormat === opt.value
+                          ? "border-primary bg-primary/10 text-primary"
+                          : "border-border bg-secondary text-muted-foreground hover:border-muted-foreground/30"
+                      )}
                     >
-                      <span className="persona-btn-icon">{p.icon}</span>
-                      <span>{p.name}</span>
+                      <div>{opt.label}</div>
+                      <div className="text-[0.6rem] opacity-60">{opt.desc}</div>
                     </button>
                   ))}
                 </div>
-                {selectedPersona && (
-                  <p style={{ fontSize: "0.75rem", color: "var(--text-dim)", marginTop: "0.35rem" }}>
-                    {selectedPersona.description}
-                  </p>
-                )}
               </div>
-            )}
 
-            {/* Tone */}
-            <div>
-              <label>Tom {selectedPersona ? `(${selectedPersona.name})` : ""}</label>
-              <input
-                value={selectedPersona ? selectedPersona.tone : tone}
-                onChange={(e) => setTone(e.target.value)}
-                disabled={!!selectedPersona}
-                style={selectedPersona ? { opacity: 0.6 } : {}}
-              />
-            </div>
-
-            {/* Format */}
-            <div className="generate-bar">
-              <label>Formato</label>
-              <div className="format-options">
-                {FORMAT_OPTIONS.map((opt) => (
-                  <button
-                    key={opt.value}
-                    type="button"
-                    className={`format-btn ${draftFormat === opt.value ? "active" : ""}`}
-                    onClick={() => setDraftFormat(opt.value)}
-                  >
-                    {opt.label}
-                    <div style={{ fontSize: "0.65rem", opacity: 0.7 }}>{opt.desc}</div>
-                  </button>
-                ))}
+              {/* Count */}
+              <div>
+                <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1.5 block">
+                  Variacoes
+                </label>
+                <Input
+                  type="number"
+                  min={1}
+                  max={10}
+                  value={draftCount}
+                  onChange={(e) => setDraftCount(Number(e.target.value))}
+                  className="h-8 text-sm"
+                />
               </div>
-            </div>
 
-            {/* Count */}
-            <div>
-              <label>Variacoes</label>
-              <input
-                type="number"
-                min={1}
-                max={10}
-                value={draftCount}
-                onChange={(e) => setDraftCount(Number(e.target.value))}
-              />
-            </div>
-
-            {/* Generate button */}
-            <button
-              type="button"
-              className="primary"
-              disabled={busy === "draft"}
-              onClick={handleGenerate}
-              style={{ width: "100%" }}
-            >
-              {busy === "draft" ? <><span className="spinner" /> Gerando...</> : `Gerar ${draftCount} variacoes`}
-            </button>
-
-            {mentorsUsed.length > 0 && (
-              <p style={{ fontSize: "0.75rem", color: "var(--text-dim)" }}>
-                Mentores: {mentorsUsed.map((m) => `@${m}`).join(", ")}
-              </p>
-            )}
-
-            {/* Ghostwriter toggle */}
-            <div style={{ borderTop: "1px solid var(--border)", paddingTop: "0.75rem" }}>
-              <button
-                type="button"
-                className="small"
-                onClick={() => setShowGhostwriter(!showGhostwriter)}
-                style={{ width: "100%", fontSize: "0.78rem" }}
+              {/* Generate */}
+              <Button
+                variant="primary"
+                disabled={busy === "draft"}
+                onClick={handleGenerate}
+                className="w-full"
               >
-                {showGhostwriter ? "Fechar Ghostwriter" : "Ghostwriter"}
-              </button>
+                {busy === "draft" ? <Loader2 className="size-4 animate-spin" /> : <Sparkles className="size-4" />}
+                Gerar {draftCount} variacoes
+              </Button>
+
+              {mentorsUsed.length > 0 && (
+                <p className="text-[0.7rem] text-muted-foreground">
+                  Mentores: {mentorsUsed.map((m) => `@${m}`).join(", ")}
+                </p>
+              )}
+
+              <Separator />
+
+              {/* Ghostwriter */}
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowGhostwriter(!showGhostwriter)}
+                className="w-full justify-start text-muted-foreground"
+              >
+                <Ghost className="size-3.5" />
+                Ghostwriter
+                <ChevronDown className={cn("size-3 ml-auto transition-transform", showGhostwriter && "rotate-180")} />
+              </Button>
               {showGhostwriter && (
-                <div style={{ marginTop: "0.5rem" }}>
-                  <textarea
+                <div className="space-y-2 animate-in slide-in-from-top-1 duration-150">
+                  <Textarea
                     value={ghostText}
                     onChange={(e) => setGhostText(e.target.value)}
                     placeholder="Cole um texto para transformar em posts..."
-                    style={{ minHeight: 80, fontSize: "0.82rem" }}
+                    className="min-h-[80px] text-sm"
                   />
-                  <button
-                    type="button"
-                    className="primary small"
+                  <Button
+                    size="sm"
+                    variant="primary"
                     disabled={busy === "ghostwrite" || ghostText.trim().length < 10}
                     onClick={handleGhostwrite}
-                    style={{ width: "100%", marginTop: "0.35rem" }}
+                    className="w-full"
                   >
-                    {busy === "ghostwrite" ? <><span className="spinner" /> Transformando...</> : `Gerar ${draftCount} posts`}
-                  </button>
+                    {busy === "ghostwrite" ? <Loader2 className="size-3 animate-spin" /> : null}
+                    Gerar {draftCount} posts
+                  </Button>
                 </div>
               )}
-            </div>
-          </div>
+            </CardContent>
+          </Card>
         </div>
       </div>
     </div>

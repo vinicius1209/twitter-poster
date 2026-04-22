@@ -1,20 +1,14 @@
 import { useNavigate } from "react-router-dom";
+import {
+  PenLine, Heart, Eye, Users, ArrowRight,
+  Clock, CheckCircle2, XCircle, UserCircle,
+} from "lucide-react";
 import { useAppStore } from "../store.js";
-
-function timeAgo(iso: string): string {
-  const diff = Date.now() - new Date(iso).getTime();
-  const mins = Math.floor(diff / 60000);
-  if (mins < 60) return `${mins}min atras`;
-  const hours = Math.floor(mins / 60);
-  if (hours < 24) return `${hours}h atras`;
-  return `${Math.floor(hours / 24)}d atras`;
-}
-
-function formatNumber(n: number): string {
-  if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + "M";
-  if (n >= 1_000) return (n / 1_000).toFixed(1) + "K";
-  return n.toString();
-}
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
+import { cn, formatNumber, timeAgo } from "@/lib/utils";
 
 export function CockpitPage() {
   const navigate = useNavigate();
@@ -31,20 +25,12 @@ export function CockpitPage() {
   const scheduledCount = scheduled.filter((s) => s.status === "scheduled").length;
   const totalCollected = collectionStats.reduce((a, s) => a + s.count, 0);
 
-  // Build activity log from real data
-  const activities: { icon: string; text: string; time: string }[] = [];
-
-  // Recent collections
+  // Build activity log
+  const activities: { icon: "heart" | "user" | "check" | "x" | "clock"; text: string; time: string }[] = [];
   for (const stat of collectionStats.slice(0, 5)) {
     const label = stat.source === "likes" ? "Curtidas coletadas" : `@${stat.source.replace("profile:", "")} coletado`;
-    activities.push({
-      icon: stat.source === "likes" ? "heart" : "user",
-      text: `${label} (${stat.count} tweets)`,
-      time: stat.latest,
-    });
+    activities.push({ icon: stat.source === "likes" ? "heart" : "user", text: `${label} (${stat.count} tweets)`, time: stat.latest });
   }
-
-  // Recent scheduled
   for (const s of scheduled.slice(0, 3)) {
     activities.push({
       icon: s.status === "posted" ? "check" : s.status === "failed" ? "x" : "clock",
@@ -52,136 +38,134 @@ export function CockpitPage() {
       time: s.run_at,
     });
   }
-
   activities.sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime());
+
+  const iconMap = {
+    heart: <Heart className="size-3.5 text-destructive" />,
+    user: <UserCircle className="size-3.5 text-primary" />,
+    check: <CheckCircle2 className="size-3.5 text-success" />,
+    x: <XCircle className="size-3.5 text-destructive" />,
+    clock: <Clock className="size-3.5 text-warning" />,
+  };
+
+  const stats = [
+    { icon: PenLine, label: "Publicados", value: postedCount, color: "text-primary" },
+    { icon: Heart, label: "Likes", value: metrics?.totalLikes ?? 0, color: "text-destructive" },
+    { icon: Eye, label: "Views", value: metrics?.totalViews ?? 0, color: "text-primary" },
+    { icon: Users, label: "Mentores", value: authors.length, color: "text-success" },
+  ];
 
   return (
     <div>
-      <div className="page-header">
-        <h1>Cockpit</h1>
-        <p>Visao geral do seu motor de crescimento</p>
+      <div className="mb-8">
+        <h1 className="text-2xl font-bold tracking-tight">Cockpit</h1>
+        <p className="text-sm text-muted-foreground">Visao geral do seu motor de crescimento</p>
       </div>
 
-      {/* Stats row */}
-      <div className="cockpit-stats">
-        <div className="stat-card">
-          <div style={{ fontSize: "1.4rem", marginBottom: "0.2rem" }}>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
-          </div>
-          <div className="stat-card-value">{formatNumber(postedCount)}</div>
-          <div className="stat-card-label">Publicados</div>
-        </div>
-        <div className="stat-card">
-          <div style={{ fontSize: "1.4rem", marginBottom: "0.2rem" }}>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78Z"/></svg>
-          </div>
-          <div className="stat-card-value">{formatNumber(metrics?.totalLikes ?? 0)}</div>
-          <div className="stat-card-label">Likes</div>
-        </div>
-        <div className="stat-card">
-          <div style={{ fontSize: "1.4rem", marginBottom: "0.2rem" }}>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-          </div>
-          <div className="stat-card-value">{formatNumber(metrics?.totalViews ?? 0)}</div>
-          <div className="stat-card-label">Views</div>
-        </div>
-        <div className="stat-card">
-          <div style={{ fontSize: "1.4rem", marginBottom: "0.2rem" }}>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-          </div>
-          <div className="stat-card-value">{authors.length}</div>
-          <div className="stat-card-label">Mentores</div>
-        </div>
+      {/* Stats */}
+      <div className="grid grid-cols-2 gap-3 mb-6 sm:grid-cols-4">
+        {stats.map((s) => (
+          <Card key={s.label} className="bg-background border-border">
+            <CardContent className="p-4 text-center">
+              <s.icon className={cn("size-5 mx-auto mb-1.5", s.color)} />
+              <div className="font-mono text-2xl font-bold text-primary">{formatNumber(s.value)}</div>
+              <div className="text-[0.7rem] uppercase tracking-wider text-muted-foreground mt-1">{s.label}</div>
+            </CardContent>
+          </Card>
+        ))}
       </div>
 
-      <div className="cockpit-grid">
-        {/* Action Inbox */}
-        <div className="action-inbox" style={{ gridColumn: "1 / -1" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: "1rem", flex: 1 }}>
-            <div className="action-inbox-count">{pendingDrafts.length}</div>
-            <div className="action-inbox-text">
-              <h3>
-                {pendingDrafts.length > 0
-                  ? "Rascunhos aguardando revisao"
-                  : "Nenhum rascunho pendente"}
-              </h3>
-              <p>
-                {pendingDrafts.length > 0
-                  ? "Revise, edite e aprove para publicacao"
-                  : scheduledCount > 0
-                    ? `${scheduledCount} post${scheduledCount > 1 ? "s" : ""} na fila de publicacao`
-                    : "Gere novos rascunhos no Studio"}
-              </p>
+      {/* Action Inbox */}
+      <Card className={cn(
+        "mb-6 transition-colors",
+        pendingDrafts.length > 0 && "border-primary/30 bg-primary/[0.03]"
+      )}>
+        <CardContent className="flex items-center gap-5 p-5">
+          <div className="font-mono text-4xl font-bold text-primary leading-none">
+            {pendingDrafts.length}
+          </div>
+          <div className="flex-1">
+            <h3 className="font-semibold text-sm">
+              {pendingDrafts.length > 0 ? "Rascunhos aguardando revisao" : "Nenhum rascunho pendente"}
+            </h3>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              {pendingDrafts.length > 0
+                ? "Revise, edite e aprove para publicacao"
+                : scheduledCount > 0
+                  ? `${scheduledCount} post${scheduledCount > 1 ? "s" : ""} na fila`
+                  : "Gere novos rascunhos no Studio"}
+            </p>
+          </div>
+          <Button variant="primary" onClick={() => navigate("/studio")}>
+            {pendingDrafts.length > 0 ? "Revisar" : "Criar"}
+            <ArrowRight className="size-4" />
+          </Button>
+        </CardContent>
+      </Card>
+
+      {/* Gamification */}
+      <div className="grid grid-cols-2 gap-3 mb-6">
+        <Card>
+          <CardContent className="p-5">
+            <div className="font-mono text-3xl font-bold text-primary">{formatNumber(totalCollected)}</div>
+            <div className="text-sm font-medium mt-1">Tweets na base</div>
+            <div className="text-xs text-muted-foreground mt-0.5">
+              {collectionStats.length} fonte{collectionStats.length !== 1 ? "s" : ""} monitorada{collectionStats.length !== 1 ? "s" : ""}
             </div>
-          </div>
-          <button
-            type="button"
-            className="primary"
-            onClick={() => navigate("/studio")}
-          >
-            {pendingDrafts.length > 0 ? "Revisar" : "Criar"} &rarr;
-          </button>
-        </div>
-
-        {/* Gamification: Collection */}
-        <div className="gamification-card">
-          <div className="gamification-card-value">{formatNumber(totalCollected)}</div>
-          <div className="gamification-card-label">Tweets na base</div>
-          <div className="gamification-card-detail">
-            {collectionStats.length} fonte{collectionStats.length !== 1 ? "s" : ""} monitorada{collectionStats.length !== 1 ? "s" : ""}
-          </div>
-        </div>
-
-        {/* Gamification: Scheduled */}
-        <div className="gamification-card">
-          <div className="gamification-card-value">{scheduledCount}</div>
-          <div className="gamification-card-label">Na fila</div>
-          <div className="gamification-card-detail">
-            {postedCount} publicado{postedCount !== 1 ? "s" : ""} no total
-          </div>
-        </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-5">
+            <div className="font-mono text-3xl font-bold text-primary">{scheduledCount}</div>
+            <div className="text-sm font-medium mt-1">Na fila</div>
+            <div className="text-xs text-muted-foreground mt-0.5">
+              {postedCount} publicado{postedCount !== 1 ? "s" : ""} no total
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Activity Log */}
       {activities.length > 0 && (
-        <div className="activity-log">
-          <h3>Atividade recente</h3>
-          {activities.slice(0, 8).map((a, i) => (
-            <div key={i} className="activity-log-item">
-              <span className="activity-log-icon">
-                {a.icon === "heart" ? (
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--danger)" strokeWidth="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78Z"/></svg>
-                ) : a.icon === "user" ? (
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-                ) : a.icon === "check" ? (
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--ok)" strokeWidth="2"><polyline points="20 6 9 17 4 12"/></svg>
-                ) : a.icon === "x" ? (
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--danger)" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-                ) : (
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--warn)" strokeWidth="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-                )}
-              </span>
-              <span className="activity-log-content">{a.text}</span>
-              <span className="activity-log-time">{timeAgo(a.time)}</span>
-            </div>
-          ))}
-        </div>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-xs uppercase tracking-wider text-muted-foreground">
+              Atividade recente
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="pt-0">
+            {activities.slice(0, 8).map((a, i) => (
+              <div key={i}>
+                <div className="flex items-start gap-3 py-2.5">
+                  <span className="mt-0.5">{iconMap[a.icon]}</span>
+                  <span className="flex-1 text-sm text-muted-foreground">{a.text}</span>
+                  <span className="text-[0.68rem] font-mono text-muted-foreground/60 whitespace-nowrap">
+                    {timeAgo(a.time)}
+                  </span>
+                </div>
+                {i < activities.length - 1 && <Separator />}
+              </div>
+            ))}
+          </CardContent>
+        </Card>
       )}
 
       {/* Best post */}
       {metrics?.bestPost && (
-        <div style={{ marginTop: "1rem" }}>
-          <div className="item-card" style={{ borderColor: "color-mix(in srgb, var(--ok) 30%, var(--border))" }}>
-            <div className="item-card-header">
-              <span className="badge ok">melhor post</span>
-              <span style={{ fontSize: "0.78rem", color: "var(--text-dim)" }}>
+        <Card className="mt-4 border-success/20">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between mb-2">
+              <Badge variant="success">melhor post</Badge>
+              <span className="text-xs text-muted-foreground">
                 {formatNumber(metrics.bestPost.likes)} likes / {formatNumber(metrics.bestPost.views)} views
               </span>
             </div>
-            <div className="item-card-body">{metrics.bestPost.body}</div>
-            <div className="item-card-meta">{new Date(metrics.bestPost.run_at).toLocaleString("pt-BR")}</div>
-          </div>
-        </div>
+            <p className="text-sm leading-relaxed whitespace-pre-wrap">{metrics.bestPost.body}</p>
+            <p className="text-[0.68rem] font-mono text-muted-foreground mt-2">
+              {new Date(metrics.bestPost.run_at).toLocaleString("pt-BR")}
+            </p>
+          </CardContent>
+        </Card>
       )}
     </div>
   );

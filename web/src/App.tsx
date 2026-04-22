@@ -15,9 +15,9 @@ export function App() {
   }, [loadAll]);
 
   return (
-    <div className="shell">
+    <div className="flex min-h-screen">
       <Sidebar />
-      <main className="shell-main">
+      <main className="ml-60 flex-1 min-w-0 p-6 pb-12 max-w-[1100px] max-[768px]:ml-0 max-[768px]:mb-14 max-[768px]:p-4">
         <Routes>
           <Route path="/cockpit" element={<CockpitPage />} />
           <Route path="/studio" element={<StudioPage />} />

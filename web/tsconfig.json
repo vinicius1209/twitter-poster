@@ -10,7 +10,8 @@
     "noEmit": true,
     "isolatedModules": true,
     "paths": {
-      "@shared/*": ["../src/shared/*"]
+      "@shared/*": ["../src/shared/*"],
+      "@/*": ["./src/*"]
     }
   },
   "include": ["src", "../src/shared"]

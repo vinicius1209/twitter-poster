@@ -1,0 +1,64 @@
+@import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Outfit:wght@300;400;500;600;700&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --color-background: #08090c;
+  --color-foreground: #e4e8f1;
+  --color-muted: #111318;
+  --color-muted-foreground: #6b7590;
+  --color-card: #111318;
+  --color-card-foreground: #e4e8f1;
+  --color-popover: #111318;
+  --color-popover-foreground: #e4e8f1;
+  --color-border: #242938;
+  --color-input: #242938;
+  --color-primary: #38bdf8;
+  --color-primary-foreground: #08090c;
+  --color-secondary: #181b22;
+  --color-secondary-foreground: #e4e8f1;
+  --color-accent: #181b22;
+  --color-accent-foreground: #e4e8f1;
+  --color-destructive: #f87171;
+  --color-destructive-foreground: #fff;
+  --color-success: #4ade80;
+  --color-success-foreground: #08090c;
+  --color-warning: #fbbf24;
+  --color-warning-foreground: #08090c;
+  --color-ring: #38bdf8;
+
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 14px;
+  --radius-xl: 20px;
+
+  --font-sans: 'Outfit', system-ui, sans-serif;
+  --font-mono: 'Space Mono', ui-monospace, monospace;
+
+  --color-sidebar: #0d0f14;
+  --color-sidebar-foreground: #e4e8f1;
+  --color-sidebar-border: #1a1e28;
+  --color-sidebar-accent: rgba(56, 189, 248, 0.12);
+}
+
+@layer base {
+  * {
+    box-sizing: border-box;
+    margin: 0;
+    border-color: var(--color-border);
+  }
+
+  body {
+    min-height: 100vh;
+    background: var(--color-background);
+    color: var(--color-foreground);
+    font-family: var(--font-sans);
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  code, .mono {
+    font-family: var(--font-mono);
+    font-size: 0.82em;
+  }
+}
+

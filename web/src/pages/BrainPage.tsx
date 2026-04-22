@@ -1,6 +1,17 @@
 import { useState } from "react";
+import {
+  Loader2, Plus, UserCircle, Scan, Trash2,
+  Heart, RefreshCw, X as XIcon,
+} from "lucide-react";
 import { useAppStore } from "../store.js";
 import { api } from "../api.js";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Separator } from "@/components/ui/separator";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { cn, timeAgo } from "@/lib/utils";
 import type { Author } from "@shared/types.js";
 
 type ProfileStudy = {
@@ -17,17 +28,8 @@ const WINDOW_PRESETS = [
   { label: "6h", value: 6 },
   { label: "24h", value: 24 },
   { label: "48h", value: 48 },
-  { label: "7 dias", value: 168 },
+  { label: "7d", value: 168 },
 ];
-
-function timeAgo(iso: string): string {
-  const diff = Date.now() - new Date(iso).getTime();
-  const mins = Math.floor(diff / 60000);
-  if (mins < 60) return `${mins}min atras`;
-  const hours = Math.floor(mins / 60);
-  if (hours < 24) return `${hours}h atras`;
-  return `${Math.floor(hours / 24)}d atras`;
-}
 
 /* ── MentorCard ───────────────────────────── */
 
@@ -47,33 +49,39 @@ function MentorCard({
   onStudy: () => void;
 }) {
   return (
-    <div className="mentor-card">
-      <div className="mentor-card-header">
-        <div className="mentor-card-avatar">
-          {author.handle[0]?.toUpperCase() ?? "?"}
+    <Card className="transition-all duration-150 hover:border-muted-foreground/30">
+      <CardContent className="p-4">
+        <div className="flex items-center gap-3 mb-3">
+          <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-indigo-500 to-purple-500 text-white text-sm font-bold">
+            {author.handle[0]?.toUpperCase() ?? "?"}
+          </div>
+          <div className="min-w-0">
+            <div className="font-mono text-sm font-semibold text-primary truncate">@{author.handle}</div>
+            {author.display_name && (
+              <div className="text-xs text-muted-foreground truncate">{author.display_name}</div>
+            )}
+          </div>
         </div>
-        <div>
-          <div className="mentor-card-handle">@{author.handle}</div>
-          {author.display_name && (
-            <div className="mentor-card-name">{author.display_name}</div>
-          )}
+        {syncStatus && (
+          <p className="text-[0.68rem] font-mono text-muted-foreground mb-3">
+            Ultima coleta: {syncStatus}
+          </p>
+        )}
+        <div className="flex gap-1.5">
+          <Button size="sm" variant="outline" disabled={busy} onClick={onStudy} className="h-7 flex-1">
+            <Scan className="size-3" />
+            Raio-X
+          </Button>
+          <Button size="sm" variant="outline" disabled={busy} onClick={onSync} className="h-7 flex-1">
+            {busy ? <Loader2 className="size-3 animate-spin" /> : <RefreshCw className="size-3" />}
+            Coletar
+          </Button>
+          <Button size="sm" variant="destructive" disabled={busy} onClick={onRemove} className="h-7">
+            <Trash2 className="size-3" />
+          </Button>
         </div>
-      </div>
-      {syncStatus && (
-        <div className="mentor-card-status">Ultima coleta: {syncStatus}</div>
-      )}
-      <div className="mentor-card-actions">
-        <button type="button" className="small" disabled={busy} onClick={onStudy}>
-          Raio-X
-        </button>
-        <button type="button" className="small" disabled={busy} onClick={onSync}>
-          {busy ? <><span className="spinner" /></> : "Coletar"}
-        </button>
-        <button type="button" className="small danger" disabled={busy} onClick={onRemove}>
-          Remover
-        </button>
-      </div>
-    </div>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -88,51 +96,53 @@ function StyleXRayDrawer({
 }) {
   return (
     <>
-      <div className="xray-drawer-overlay" onClick={onClose} />
-      <div className="xray-drawer">
-        <button className="xray-drawer-close" onClick={onClose}>x</button>
+      <div className="fixed inset-0 z-[200] bg-black/50 animate-in fade-in duration-200" onClick={onClose} />
+      <div className="fixed top-0 right-0 z-[201] h-screen w-[420px] max-w-[90vw] overflow-y-auto border-l border-border bg-card p-6 animate-in slide-in-from-right duration-250">
+        <Button variant="ghost" size="icon" onClick={onClose} className="absolute top-4 right-4 h-8 w-8">
+          <XIcon className="size-4" />
+        </Button>
 
-        <h2 style={{ fontSize: "1.1rem", marginBottom: "0.3rem" }}>@{study.handle}</h2>
-        <p style={{ fontSize: "0.82rem", color: "var(--text-dim)", marginBottom: "1.25rem" }}>
+        <h2 className="text-lg font-bold mb-1">@{study.handle}</h2>
+        <p className="text-sm text-muted-foreground mb-5">
           {study.tweetCount} tweets analisados
         </p>
 
         {study.summary && (
-          <div className="xray-section">
-            <h4>Resumo</h4>
-            <p style={{ fontSize: "0.88rem", lineHeight: 1.6 }}>{study.summary}</p>
+          <div className="mb-5">
+            <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">Resumo</h4>
+            <p className="text-sm leading-relaxed">{study.summary}</p>
           </div>
         )}
 
         {study.themes.length > 0 && (
-          <div className="xray-section">
-            <h4>Temas</h4>
-            <div className="xray-tags">
+          <div className="mb-5">
+            <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">Temas</h4>
+            <div className="flex flex-wrap gap-1.5">
               {study.themes.map((t, i) => (
-                <span key={i} className="xray-tag">{t}</span>
+                <Badge key={i} variant="primary">{t}</Badge>
               ))}
             </div>
           </div>
         )}
 
         {study.writingStyle && (
-          <div className="xray-section">
-            <h4>Estilo de escrita</h4>
-            <p style={{ fontSize: "0.85rem", color: "var(--text-dim)", lineHeight: 1.6 }}>{study.writingStyle}</p>
+          <div className="mb-5">
+            <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">Estilo de escrita</h4>
+            <p className="text-sm text-muted-foreground leading-relaxed">{study.writingStyle}</p>
           </div>
         )}
 
         {study.typicalFormat && (
-          <div className="xray-section">
-            <h4>Formato tipico</h4>
-            <p style={{ fontSize: "0.85rem", color: "var(--text-dim)", lineHeight: 1.6 }}>{study.typicalFormat}</p>
+          <div className="mb-5">
+            <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">Formato tipico</h4>
+            <p className="text-sm text-muted-foreground leading-relaxed">{study.typicalFormat}</p>
           </div>
         )}
 
         {study.engagementTips && (
-          <div className="xray-section">
-            <h4>Dicas de engajamento</h4>
-            <p style={{ fontSize: "0.85rem", color: "var(--text-dim)", lineHeight: 1.6 }}>{study.engagementTips}</p>
+          <div>
+            <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">Dicas de engajamento</h4>
+            <p className="text-sm text-muted-foreground leading-relaxed">{study.engagementTips}</p>
           </div>
         )}
       </div>
@@ -158,7 +168,6 @@ export function BrainPage() {
   const [studyLoading, setStudyLoading] = useState<string | null>(null);
   const [studyResult, setStudyResult] = useState<ProfileStudy | null>(null);
   const [depth, setDepth] = useState(15);
-
   const maxTweets = depth * 10;
 
   function getSyncStatus(handle: string): string | null {
@@ -168,54 +177,20 @@ export function BrainPage() {
 
   async function handleAddAuthor() {
     if (!newHandle.trim()) return;
-    await run("author", async () => {
-      await api.addAuthor(newHandle.replace(/^@/, ""));
-      setNewHandle("");
-    });
+    await run("author", async () => { await api.addAuthor(newHandle.replace(/^@/, "")); setNewHandle(""); });
   }
 
-  async function handleRemoveAuthor(handle: string) {
-    await run("del", async () => {
-      await api.deleteAuthor(handle);
-    });
-  }
-
-  async function handleSyncProfile(handle: string) {
-    await run("profile", async () => {
-      await api.syncProfile(handle, depth, maxTweets);
-      setMsg(`@${handle} coletado.`);
-    });
-  }
-
-  async function handleSyncLikes() {
-    await run("likes", async () => {
-      await api.syncLikes(depth, maxTweets);
-      setMsg("Curtidas coletadas.");
-    });
-  }
-
-  async function handleSyncWatchlist() {
-    await run("watchlist", async () => {
-      await api.syncWatchlist();
-      setMsg("Watchlist coletada.");
-    });
-  }
+  async function handleRemoveAuthor(handle: string) { await run("del", () => api.deleteAuthor(handle)); }
+  async function handleSyncProfile(handle: string) { await run("profile", async () => { await api.syncProfile(handle, depth, maxTweets); setMsg(`@${handle} coletado.`); }); }
+  async function handleSyncLikes() { await run("likes", async () => { await api.syncLikes(depth, maxTweets); setMsg("Curtidas coletadas."); }); }
+  async function handleSyncWatchlist() { await run("watchlist", async () => { await api.syncWatchlist(); setMsg("Watchlist coletada."); }); }
 
   async function handleStudy(handle: string) {
     setStudyLoading(handle);
     try {
-      const result = await api.studyProfile(handle);
-      setStudyResult(result);
+      setStudyResult(await api.studyProfile(handle));
     } catch (e) {
-      setStudyResult({
-        handle,
-        tweetCount: 0,
-        themes: [],
-        writingStyle: "",
-        typicalFormat: "",
-        engagementTips: "",
-        summary: e instanceof Error ? e.message : "Erro",
-      });
+      setStudyResult({ handle, tweetCount: 0, themes: [], writingStyle: "", typicalFormat: "", engagementTips: "", summary: e instanceof Error ? e.message : "Erro" });
     }
     setStudyLoading(null);
   }
@@ -233,27 +208,29 @@ export function BrainPage() {
 
   return (
     <div>
-      <div className="page-header">
-        <h1>Cerebro</h1>
-        <p>Mentores, analise de estilo e configuracao do agente</p>
+      <div className="mb-8">
+        <h1 className="text-2xl font-bold tracking-tight">Cerebro</h1>
+        <p className="text-sm text-muted-foreground">Mentores, analise de estilo e configuracao do agente</p>
       </div>
 
       {/* Add mentor */}
-      <div className="mentor-add">
-        <input
+      <div className="flex gap-2 mb-5">
+        <Input
           placeholder="@handle para monitorar"
           value={newHandle}
           onChange={(e) => setNewHandle(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && handleAddAuthor()}
+          className="h-9"
         />
-        <button type="button" disabled={isBusy || !newHandle.trim()} onClick={handleAddAuthor}>
-          + Adicionar
-        </button>
+        <Button disabled={isBusy || !newHandle.trim()} onClick={handleAddAuthor}>
+          <Plus className="size-4" />
+          Adicionar
+        </Button>
       </div>
 
       {/* Mentor Grid */}
       {authors.length > 0 ? (
-        <div className="mentor-grid">
+        <div className="grid grid-cols-1 gap-3 mb-5 sm:grid-cols-2 lg:grid-cols-3">
           {authors.map((a) => (
             <MentorCard
               key={a.id}
@@ -267,148 +244,139 @@ export function BrainPage() {
           ))}
         </div>
       ) : (
-        <div className="empty-state" style={{ marginBottom: "1rem" }}>
-          Adicione perfis para monitorar e aprender seu estilo.
-        </div>
+        <Card className="mb-5 border-dashed">
+          <CardContent className="p-6 text-center text-sm text-muted-foreground">
+            Adicione perfis para monitorar e aprender seu estilo.
+          </CardContent>
+        </Card>
       )}
 
       {/* Bulk actions */}
-      <div style={{ display: "flex", gap: "0.5rem", marginBottom: "1.5rem" }}>
-        <button type="button" disabled={isBusy} onClick={handleSyncLikes} style={{ flex: 1 }}>
-          {busy === "likes" ? <><span className="spinner" /> Coletando...</> : "Coletar curtidas"}
-        </button>
+      <div className="flex gap-2 mb-6">
+        <Button variant="outline" disabled={isBusy} onClick={handleSyncLikes} className="flex-1">
+          {busy === "likes" ? <Loader2 className="size-4 animate-spin" /> : <Heart className="size-4" />}
+          Coletar curtidas
+        </Button>
         {authors.length > 0 && (
-          <button type="button" disabled={isBusy} onClick={handleSyncWatchlist} style={{ flex: 1 }}>
-            {busy === "watchlist" ? <><span className="spinner" /> Coletando...</> : `Coletar watchlist (${authors.length})`}
-          </button>
+          <Button variant="outline" disabled={isBusy} onClick={handleSyncWatchlist} className="flex-1">
+            {busy === "watchlist" ? <Loader2 className="size-4 animate-spin" /> : <RefreshCw className="size-4" />}
+            Coletar watchlist ({authors.length})
+          </Button>
         )}
       </div>
 
       {/* Agent Config */}
-      <div className="agent-config" style={{ marginBottom: "1.5rem" }}>
-        <h3>Configuracao do Agente</h3>
-
-        <div className="config-row">
-          <div>
-            <div className="config-row-label">Profundidade de coleta</div>
-            <div className="config-row-detail">{depth} scrolls (~{maxTweets} tweets)</div>
+      <Card className="mb-6">
+        <CardHeader>
+          <CardTitle>Configuracao do Agente</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-1">
+          <div className="flex items-center justify-between py-3 border-b border-border">
+            <div>
+              <div className="text-sm">Profundidade de coleta</div>
+              <div className="text-xs text-muted-foreground">{depth} scrolls (~{maxTweets} tweets)</div>
+            </div>
+            <input
+              type="range"
+              min={3}
+              max={50}
+              value={depth}
+              onChange={(e) => setDepth(Number(e.target.value))}
+              className="w-28 accent-[#38bdf8]"
+            />
           </div>
-          <input
-            type="range"
-            min={3}
-            max={50}
-            value={depth}
-            onChange={(e) => setDepth(Number(e.target.value))}
-            style={{ width: 120, accentColor: "var(--accent)" }}
-          />
-        </div>
-
-        <div className="config-row">
-          <div>
-            <div className="config-row-label">Periodo de analise</div>
+          <div className="flex items-center justify-between py-3">
+            <div className="text-sm">Periodo de analise</div>
+            <div className="flex gap-1.5">
+              {WINDOW_PRESETS.map((p) => (
+                <Button
+                  key={p.value}
+                  size="sm"
+                  variant={windowH === p.value ? "primary" : "outline"}
+                  onClick={() => setWindowH(p.value)}
+                  className="h-7 px-2.5"
+                >
+                  {p.label}
+                </Button>
+              ))}
+            </div>
           </div>
-          <div style={{ display: "flex", gap: "0.3rem" }}>
-            {WINDOW_PRESETS.map((p) => (
-              <button
-                key={p.value}
-                type="button"
-                className="small"
-                onClick={() => setWindowH(p.value)}
-                style={{
-                  border: `1.5px solid ${windowH === p.value ? "var(--accent)" : "var(--border)"}`,
-                  background: windowH === p.value ? "var(--accent-glow)" : "var(--surface-raised)",
-                  color: windowH === p.value ? "var(--accent)" : "var(--text-dim)",
-                  fontWeight: windowH === p.value ? 600 : 400,
-                }}
-              >
-                {p.label}
-              </button>
-            ))}
-          </div>
-        </div>
+          <Button variant="primary" disabled={busy === "analyze"} onClick={handleAnalyze} className="w-full mt-3">
+            {busy === "analyze" ? <Loader2 className="size-4 animate-spin" /> : null}
+            Analisar ultimas {windowH}h
+          </Button>
+        </CardContent>
+      </Card>
 
-        <button
-          type="button"
-          className="primary"
-          disabled={busy === "analyze"}
-          onClick={handleAnalyze}
-          style={{ width: "100%", marginTop: "0.75rem" }}
-        >
-          {busy === "analyze" ? <><span className="spinner" /> Analisando...</> : `Analisar ultimas ${windowH}h`}
-        </button>
-      </div>
-
-      {/* Latest analysis result */}
+      {/* Latest analysis */}
       {latest && (
-        <div style={{ marginBottom: "1.5rem" }}>
-          <label>Ultima analise</label>
-          <div className="item-card">
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.4rem" }}>
-              <span className={`badge ${analysisSource === "llm" ? "ok" : "warn"}`}>
-                {analysisSource === "llm" ? "IA" : "heuristica"}
-              </span>
-              <span className="mono" style={{ fontSize: "0.72rem", color: "var(--text-dim)" }}>
-                {latest.window_hours}h / {new Date(latest.created_at).toLocaleString("pt-BR")}
-              </span>
+        <Card className="mb-6">
+          <CardHeader className="pb-2">
+            <div className="flex items-center justify-between">
+              <CardTitle>Ultima analise</CardTitle>
+              <div className="flex items-center gap-2">
+                <Badge variant={analysisSource === "llm" ? "success" : "warning"}>
+                  {analysisSource === "llm" ? "IA" : "heuristica"}
+                </Badge>
+                <span className="text-[0.68rem] font-mono text-muted-foreground">
+                  {latest.window_hours}h / {new Date(latest.created_at).toLocaleString("pt-BR")}
+                </span>
+              </div>
             </div>
-            <div className="item-card-body" style={{ whiteSpace: "pre-wrap" }}>
-              {latest.summary}
-            </div>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm leading-relaxed whitespace-pre-wrap mb-3">{latest.summary}</p>
             {latest.topics_json && (() => {
               const tags = JSON.parse(latest.topics_json) as string[];
               return tags.length > 0 ? (
-                <div style={{ marginTop: "0.6rem", display: "flex", flexWrap: "wrap", gap: "0.3rem" }}>
+                <div className="flex flex-wrap gap-1.5">
                   {tags.map((t, i) => (
-                    <span key={i} className="xray-tag">{t}</span>
+                    <Badge key={i} variant="primary">{t}</Badge>
                   ))}
                 </div>
               ) : null;
             })()}
-          </div>
-        </div>
+          </CardContent>
+        </Card>
       )}
 
       {/* Collection stats */}
       {collectionStats.length > 0 && (
-        <div style={{ marginBottom: "1.5rem" }}>
-          <label>Base de conhecimento</label>
-          <div style={{ display: "flex", flexDirection: "column", gap: "0.35rem" }}>
-            {collectionStats.map((s) => (
-              <div key={s.source} className="item-card" style={{ padding: "0.5rem 0.75rem" }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <span className="mono" style={{ fontSize: "0.82rem", color: "var(--accent)" }}>
-                    {s.source === "likes" ? "Minhas curtidas" : s.source.replace("profile:", "@")}
-                  </span>
-                  <div style={{ display: "flex", gap: "0.6rem", alignItems: "center" }}>
-                    {s.hasMedia > 0 && (
-                      <span style={{ fontSize: "0.72rem", color: "var(--text-dim)" }}>{s.hasMedia} midia</span>
-                    )}
-                    <span className="mono" style={{ fontSize: "0.85rem", fontWeight: 600 }}>{s.count}</span>
-                    <span style={{ fontSize: "0.72rem", color: "var(--text-dim)" }}>{timeAgo(s.latest)}</span>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle>Base de conhecimento</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-0">
+              {collectionStats.map((s, i) => (
+                <div key={s.source}>
+                  <div className="flex items-center justify-between py-2.5">
+                    <span className="font-mono text-sm text-primary">
+                      {s.source === "likes" ? "Minhas curtidas" : s.source.replace("profile:", "@")}
+                    </span>
+                    <div className="flex items-center gap-3">
+                      {s.hasMedia > 0 && (
+                        <span className="text-[0.7rem] text-muted-foreground">{s.hasMedia} midia</span>
+                      )}
+                      <span className="font-mono text-sm font-semibold">{s.count}</span>
+                      <span className="text-[0.68rem] text-muted-foreground">{timeAgo(s.latest)}</span>
+                    </div>
                   </div>
+                  {i < collectionStats.length - 1 && <Separator />}
                 </div>
-              </div>
-            ))}
-          </div>
-          <div style={{
-            marginTop: "0.5rem",
-            padding: "0.5rem 0.8rem",
-            background: "var(--bg)",
-            borderRadius: "var(--radius-sm)",
-            fontSize: "0.82rem",
-            color: "var(--text-dim)",
-            display: "flex",
-            justifyContent: "space-between",
-          }}>
-            <span>Total na base</span>
-            <span className="mono" style={{ color: "var(--accent)", fontWeight: 600 }}>
-              {collectionStats.reduce((a, s) => a + s.count, 0)} tweets
-            </span>
-          </div>
-        </div>
+              ))}
+            </div>
+            <div className="mt-3 flex items-center justify-between rounded-md bg-background p-3">
+              <span className="text-sm text-muted-foreground">Total na base</span>
+              <span className="font-mono text-sm font-bold text-primary">
+                {collectionStats.reduce((a, s) => a + s.count, 0)} tweets
+              </span>
+            </div>
+          </CardContent>
+        </Card>
       )}
 
-      {/* Style X-Ray Drawer */}
+      {/* X-Ray drawer */}
       {studyResult && (
         <StyleXRayDrawer study={studyResult} onClose={() => setStudyResult(null)} />
       )}
